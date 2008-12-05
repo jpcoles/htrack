@@ -37,17 +37,20 @@
 typedef struct
 {
     uint64_t id;
-#if 0
-    float r[3], v[3];
-    float m;
-    float R;
-    uint64_t N;
-#endif
-
-    uint64_t *prog;
-    uint64_t nprog;
-    uint64_t prog_len;
+    set_t ps;
+    set_t belong;
 } group_t;
+
+/*****************************************************************************
+ * Prototypes
+ ****************************************************************************/
+uint32_t build_prog_list(FILE *fpD, FILE *fpP, group_t *groups, uint64_t n_groupsD, uint64_t n_groupsP);
+uint32_t add_to_set(set_t *set, uint64_t val);
+uint32_t sort_group_progenitors(group_t *groups, uint64_t n_groups);
+uint32_t write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups);
+uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0);
+int      prog_mass_cmp(const void *a0, const void *b0);
+void     help();
 
 #endif
 
