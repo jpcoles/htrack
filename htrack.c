@@ -10,7 +10,12 @@
 #include "jpcmacros.h"
 #include "cosmo.h"
 
-#define SECONDS_PER_GYR (3.1536e16)
+#define SECONDS_PER_GYR         (3.1536e16)
+
+#define IGNORE_PHASE_SPACE              (1)
+#define IGNORE_MASS_JUMP                (1)
+
+#define DELIM                       " \n\r"
 
 int verbosity = 0;
 
@@ -36,53 +41,128 @@ int accept_phase_space(group_t *d, group_t *p, float dt)
         && fabs(d->r[2] - (p->r[2] + dt*p->v[2]/KM_PER_MPC)) / r  < eps;
 }
 
+#if 1
 //============================================================================
 //                                accept_mass
 //============================================================================
 int accept_mass(group_t *d, group_t *p)
 {
-    return 1;
-    //return ! (p->Mvir > 10*d->Mvir);
+    return ! (p->vMax > 3*d->vMax);
 }
+#endif
 
 //============================================================================
 //                                   track
 //============================================================================
 int track(FILE *in, group_t *D, group_t *P, float dt)
 {
-    int i;
+    int i,j;
     char *line = NULL;
     size_t len;
+    uint64_t p;
 
-    set_t used = EMPTY_SET;
+    set_t used  = EMPTY_SET;
+    set_t order = EMPTY_SET;
 
     while (!feof(in))
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        uint64_t gid   = atol(strtok(line, " "));
-        uint64_t nprog = atol(strtok(NULL, " "));
+        uint64_t gid   = atol(strtok(line, DELIM));
+        uint64_t nprog = atol(strtok(NULL, DELIM));
+
+        if (gid == 0) continue;
+
+        set_add(&order, gid);
 
         //====================================================================
         // Find the first progenitor that passes all acceptance criteria.
         // If we accept it, then add it to the list of used groups so that
         // it will not be considered again.
         //====================================================================
-        int accept = 0;
-        uint64_t p = 0;
-        for (i=0; i < nprog && !accept; i++)
+        p = 0;
+        for (i=0; i < nprog; i++)
         {
-            p = atol(strtok(NULL, " "));
-            accept = !set_in(&used, p)
-                  && accept_phase_space(&D[gid], &P[p], dt)
-                  && accept_mass(&D[gid], &P[p]);
+            p = atol(strtok(NULL, DELIM));
+            set_add(&D[gid].ps, p);
+        }
+    }
+
+    for (i=0; i < order.len; i++)
+    {
+        //eprintf("i ---- %i\n", i);
+        uint64_t gid = order.v[i];
+
+        int accept = 0;
+
+#if 0
+        if (set_in(&used, gid) < 0
+         && set_in(&D[gid].ps, gid) < 0)
+        {
+            for (j=0; j < seen.len; j++)
+            {
+                if ((i=set_in(&D[seen.v[j]].ps, gid)) >= 0)
+                {
+                    uint64_t id = D[seen.v[j]].ps.v[i];
+                    if ((fabs(D[gid].vMax - P[id].vMax)/P[id].vMax) < 0.002)
+                        accept = 1;
+                }
+            }
+            //accept = 1;
+        }
+#endif
+
+        D[gid].pid = 0;
+
+        for (j=0; j < D[gid].ps.len && !accept; j++)
+        {
+            p = D[gid].ps.v[j];
+            accept  = set_in(&used, p) < 0;
+#if 1
+            accept &= (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt));
+            accept &= (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
+#if 0
+            if (! (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p])) )
+            {
+                if (set_in(&used, gid) < 0)
+                {
+                    p = gid;
+                    accept = 1;
+                }
+            }
+#endif
+#endif
+                  ;
         }
 
         if (accept) 
         {
+#if 0
+            if (P[p].vMax > 2*D[gid].vMax)             // Massive jump in mass
+            //if (P[p].Mvir > 2*D[gid].Mvir)             // Massive jump in mass
+            {
+                if ((j=set_in(&order, p)) >= 0 && D[p].pid != 0)
+                {
+                    eprintf("%ld %ld %ld\n", gid, p, D[p].pid);
+#if 1
+                    int k = set_in(&used, D[p].pid);
+                    assert(k >= 0);
+                    used.len = k;
+                    set_add(&used, p);
+                    D[p].pid = p;
+                    i = j;
+                    continue;
+#endif
+                }
+            }
+#endif
+
             set_add(&used, p);
             D[gid].pid = p;
         }
+
     }
+
+    set_free(&used);
 
     if (line != NULL) free(NULL);
 
@@ -90,36 +170,79 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
 }
 
 //============================================================================
+//                                build_tracks
+//============================================================================
+int build_tracks(z_t *zs, uint64_t n_zs, track_t  **tracks0, uint64_t *n_tracks0)
+{
+    track_t *tracks = NULL;
+    size_t allocd = 0;
+
+    int i,j,k;                                                                      
+    uint64_t next;                                                                  
+    int n_tracks=0;                                                           
+
+    for (k=0; k < n_zs; k++) 
+        for (j=1; j <= zs[k].n_groups; j++) 
+            zs[k].used[j] = 0; 
+
+    for (k=0; k < n_zs; k++)                                                        
+    {                                                                               
+        for (j=1; j <= zs[k].n_groups; j++)                                         
+        {                                                                           
+            if (zs[k].used[j]) continue;                                            
+
+            if (n_tracks == allocd)
+            {
+                if (allocd == 0) allocd = 64;
+                else allocd *= 2;
+
+                tracks = REALLOC(tracks, track_t, allocd);
+                memset(tracks+n_tracks, 0, allocd-n_tracks);
+            }
+
+
+            tracks[n_tracks].t = CALLOC(uint64_t, n_zs);
+
+            for (i=k, next=j; i < n_zs; i++)                                        
+            {                                                                       
+                tracks[n_tracks].t[i] = next;
+                zs[i].used[next] = 1;                                               
+                uint64_t t = zs[i].g[next].pid;                                     
+                //if (i+1 < n_zs) assert(t == zs[i+1].g[t].id);                       
+                next = t;                                                           
+            }                                                               	    
+
+            n_tracks++;                                                       
+        }									                                        
+    }                                                                               
+    VL(2) fprintf(stderr, "n_tracks=%i\n", n_tracks);                   
+
+    *tracks0   = tracks;
+    *n_tracks0 = n_tracks;
+
+    return 0;
+}
+
+//============================================================================
 //                                WRITE_MATRIX
 //============================================================================
-#define WRITE_MATRIX(fname, _prop, _fmt)                                \
-int fname(FILE *out, z_t *zs, int n_zs, int max_groups)                 \
-{                                                                       \
-    int i,j;                                                            \
-    for (j=1; j <= max_groups; j++)                                     \
-    {                                                                   \
-        uint64_t next=j;                                                \
-        for (i=0; i < n_zs; i++)                                        \
-        {                                                               \
-            if (j > zs[i].n_groups)                                     \
-                fprintf(out, _fmt, (typeof(zs[0].g[0]._prop))0);        \
-            else                                                        \
-            {                                                           \
-                fprintf(out, _fmt, zs[i].g[next]._prop);                \
-                uint64_t t = zs[i].g[next].pid;                         \
-                if (i+1 < n_zs) assert(t == zs[i+1].g[t].id);           \
-                next = t;                                               \
-            }                                                           \
-        }                                                               \
-        fprintf(out, "\n");                                             \
-    }                                                                   \
-    return 0;                                                           \
+#define WRITE_MATRIX(fname, _prop, _fmt)                                            \
+int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)                                             \
+{                                                                                   \
+    int i,t;                                                                      \
+    for (t=0; t < n_tracks; t++ )                                         \
+    {                                                                           \
+        for (i=0; i < n_zs; i++)                                                        \
+            fprintf(out, _fmt, zs[i].g[tracks[t].t[i]]._prop);                            \
+        fprintf(out, "\n");							                            \
+    }                                                                               \
+    return 0;                                                                       \
 }
 
 //============================================================================
 //                             write_pid_matrix
 //============================================================================
-WRITE_MATRIX(write_pid_matrix, pid, "% 5ld ")
+WRITE_MATRIX(write_pid_matrix, id, "%ld ")
 
 //============================================================================
 //                             write_mass_matrix
@@ -130,6 +253,41 @@ WRITE_MATRIX(write_mass_matrix, Mvir, "%.3e ")
 //                             write_vmax_matrix
 //============================================================================
 WRITE_MATRIX(write_vmax_matrix, vMax, "%.3e ")
+
+//============================================================================
+//                               write_R_matrix
+//============================================================================
+WRITE_MATRIX(write_R_matrix, R, "%.3e ")
+
+//============================================================================
+//                               calc_R
+//
+// Computes the distance of each halo from the halo considered to be halo 1
+// at each redshift.
+//============================================================================
+int calc_R(z_t *zs, int n_zs, track_t *tracks, int n_tracks)
+{                                                                                   
+    int i, t;
+    for (t=0; t < n_tracks; t++ )
+    {
+        for (i=0; i < n_zs; i++)
+        {
+            float x = zs[i].g[tracks[0].t[i]].r[0];
+            float y = zs[i].g[tracks[0].t[i]].r[1];
+            float z = zs[i].g[tracks[0].t[i]].r[2];
+
+            /* Check that the next halo isn't just the field */
+            uint64_t n = tracks[t].t[i];
+            if (n)
+                zs[i].g[n].R = 
+                    sqrt( pow(x - zs[i].g[n].r[0], 2)
+                        + pow(y - zs[i].g[n].r[1], 2)
+                        + pow(z - zs[i].g[n].r[2], 2));
+
+        }
+    }
+    return 0;
+}
 
 //============================================================================
 //                              read_ahf_groups
@@ -162,7 +320,7 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
             else allocd *= 2;
 
             groups = REALLOC(groups, group_t, allocd+1);
-            ERRORIF(groups == NULL, "No memory for mass list.");
+            ERRORIF(groups == NULL, "No memory for groups.");
             memset(groups + n_groups+1, 0, (allocd-n_groups) * sizeof(group_t));
         }
 
@@ -185,10 +343,12 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
                 &groups[n_groups].vMax
                 );
 
-        ERRORIF(read != 11, "Missing columns.");
+        ERRORIF(read != 11, "Missing columns. Expected at least 11.");
 
-        groups[n_groups].id = n_groups;
-        ERRORIF(groups[n_groups].Mvir <= 0, "Zero/Negative mass in group file.");
+        groups[n_groups].R   = 0;
+        groups[n_groups].id  = n_groups;
+        groups[n_groups].pid = 0;
+        ERRORIF(groups[n_groups].Mvir <= 0, "Group %ld has bad mass %f in group file.", n_groups, groups[n_groups].Mvir);
     }
 
     if (n_groups > 0)
@@ -196,6 +356,7 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
         groups[0].Mvir = 0;
         groups[0].id   = 0;
         groups[0].pid  = 0;
+        groups[0].R    = 0;
     }
 
     if (line != NULL) free(NULL);
@@ -207,11 +368,57 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 }
 
 //============================================================================
+//                                 read_work
+//============================================================================
+int read_work(FILE *in, work_t **work0, int *work_len0)
+{
+    work_t *work = NULL;
+    int work_len = 0; 
+    int allocd=0;
+
+    char *line = NULL;
+    size_t len;
+
+    char *t;
+
+    while (!feof(in))
+    {
+        if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
+        fprintf(stderr, line);
+
+        if (work_len == allocd)
+        {
+            if (allocd == 0) allocd = 32; else allocd *= 2;
+            work = REALLOC(work, work_t, allocd);
+            assert(work != NULL);
+        }
+
+        t = strtok(line, " \n\r"); 
+        if (t == NULL) continue; 
+        float z  = atof(t);
+        char *f1 = strtok(NULL, DELIM);
+        char *f2 = strtok(NULL, DELIM);
+
+        work[work_len].z = z;
+        if (f1 != NULL) { work[work_len].stats = MALLOC(char, strlen(f1)+1); strcpy(work[work_len].stats, f1); }
+        if (f2 != NULL) { work[work_len].pf    = MALLOC(char, strlen(f2)+1); strcpy(work[work_len].pf,    f2); }
+
+        work_len++;
+    }
+
+    if (line != NULL) free(line);
+
+    *work0 = work;
+    *work_len0 = work_len;
+    return 0;
+}
+
+//============================================================================
 //                                    help
 //============================================================================
 void help()
 {
-    fprintf(stderr, "Usage: htrack --h # --zD #  --zP #  .pf_file  .grpD  .grpP\n");
+    fprintf(stderr, "Usage: htrack [--help] [--h H0/100] [-w aivm] [-o prefix] [-f file]\n");
     exit(2);
 }
 
@@ -220,6 +427,7 @@ void help()
 //============================================================================
 int main(int argc, char **argv)
 {
+    int i;
     group_t *D = NULL;
     group_t *P = NULL;
     uint64_t nD = 0, nP = 0;
@@ -228,6 +436,8 @@ int main(int argc, char **argv)
     float zD = -1, zP = -1;
 
     char *infile = NULL;
+    char *prefix = NULL;
+    char *what = "ivmr";
     FILE *in = stdin;
 
     //if (argc < 2) help();
@@ -237,12 +447,14 @@ int main(int argc, char **argv)
         int c;
         int option_index = 0;
         static struct option long_options[] = {
-           {"help", no_argument,       0, 'h'},
-           {"h",    required_argument, 0, 0},
+           {"help",          no_argument,       0, 'h'},
+           {"h",             required_argument, 0,   0},
+           {"what",          required_argument, 0, 'w'},
+           {"output-prefix", required_argument, 0, 'o'},
            {0, 0, 0, 0}
         };
 
-        c = getopt_long(argc, argv, "hf:", long_options, &option_index);
+        c = getopt_long(argc, argv, "h:f:o:w:", long_options, &option_index);
         if (c == -1)
            break;
 
@@ -258,6 +470,30 @@ int main(int argc, char **argv)
             case 'f':
                 infile = optarg;
                 break;
+            case 'o':
+                prefix = optarg;
+                break;
+            case 'w':
+                what = optarg;
+                for (i=0; i < strlen(optarg); i++)
+                {
+                    if (optarg[i] == 'a')
+                    {
+                        what = "ivmr";
+                        break;
+                    }
+
+                    if (! (  optarg[i] == 'i' 
+                          || optarg[i] == 'v'
+                          || optarg[i] == 'r'
+                          || optarg[i] == 'm'))
+                    {
+                        help();
+                    }
+
+                }
+
+                break;
         }
     }
 
@@ -267,37 +503,34 @@ int main(int argc, char **argv)
     if (infile != NULL)
     {
         in = fopen(infile, "r");
-        ERRORIF(in == NULL, "Can't open input file.");
+        ERRORIF(in == NULL, "Can't open %s.", infile);
     }
-
-    char *line = NULL;
-    size_t len;
-    char pf[256], stats[256];
 
     z_t zs[256];
     int n_zs=0; 
-    int max_groups=0;
 
-    FILE *pf_fp=NULL, *stats_fp;
-    while (!feof(in))
+    work_t *work = NULL;
+    int work_len;
+    read_work(in, &work, &work_len);
+    if (in != stdin) fclose(in);
+
+    FILE *pf_fp=NULL;
+
+    for (i=0; i < work_len; i++)
     {
-        float z;
+        float z     = work[i].z;
+        char *stats = work[i].stats;
+        char *pf    = work[i].pf;
 
-        if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        int nfields = sscanf(line, "%f %s %s", &z, stats, pf);
-
-        fprintf(stderr, line);
-
-        stats_fp = fopen(stats, "r");
-        ERRORIF(stats_fp == NULL, "Can't open stats file.");
+        FILE *stats_fp = fopen(stats, "r");
+        ERRORIF(stats_fp == NULL, "Can't open %s.", stats);
 
         if (D == NULL)
         {
-            if (nfields == 3) 
-                ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open pf file.");
+            ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open %s.", pf);
             zD = z;
             read_ahf_groups(stats_fp, &D, &nD);
-            if (nD > max_groups) max_groups = nD;
+            fclose(stats_fp);
             continue;
         }
         else if (P != NULL)
@@ -309,10 +542,9 @@ int main(int argc, char **argv)
 
         zP = z;
         read_ahf_groups(stats_fp, &P, &nP);
+        fclose(stats_fp);
 
-        fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
-
-        if (nD > max_groups) max_groups = nD;
+        //fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
 
         //====================================================================
         //====================================================================
@@ -327,26 +559,54 @@ int main(int argc, char **argv)
         track(pf_fp, D, P, dt);
         zs[n_zs].n_groups = nD;
         zs[n_zs].g = D;
+        zs[n_zs].used = CALLOC(int, nD+1);
         n_zs++;
 
+        if (i == work_len-1)
+        {
+            zs[n_zs].n_groups = nP;
+            zs[n_zs].g = P;
+            zs[n_zs].used = CALLOC(int, nP+1);
+            n_zs++;
+        }
+
         //====================================================================
         //====================================================================
 
-        if (nfields == 3) 
-        {
-            fclose(pf_fp);
-            ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open pf file.");
-        }
+        fclose(pf_fp);
+        if (pf != NULL)
+            ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open %s.", pf);
     }
 
-    if (in != stdin) fclose(in);
-
+    track_t *tracks;
+    uint64_t n_tracks;
+    build_tracks(zs, n_zs, &tracks, &n_tracks);
 
     assert(zs[0].n_groups != 0);
 
-    //write_pid_matrix(stdout, zs, n_zs, max_groups);
-    //write_mass_matrix(stdout, zs, n_zs, max_groups);
-    write_vmax_matrix(stdout, zs, n_zs, max_groups);
+    FILE *fp = stdout;
+    char *fname = MALLOC(char, strlen(prefix)+1+1+1+2+1);
+    for (; *what; what++)
+    {
+        if (prefix) 
+        {
+            sprintf(fname, "%s.%c.ht", prefix, *what);
+            ERRORIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+        }
+
+        switch (*what)
+        {
+            case 'i': write_pid_matrix(fp, zs, n_zs, tracks, n_tracks);  break;
+            case 'm': write_mass_matrix(fp, zs, n_zs, tracks, n_tracks); break;
+            case 'v': write_vmax_matrix(fp, zs, n_zs, tracks, n_tracks); break;
+            case 'r': 
+                calc_R(zs, n_zs, tracks, n_tracks); 
+                write_R_matrix(fp, zs, n_zs, tracks, n_tracks); 
+                break;
+        }
+
+        if (fp != stdout) fclose(fp);
+    }
 
     return 0;
 }

@@ -12,8 +12,9 @@
 int verbosity = 0;
 
 /* These have to be global so the sort function can access them :( */
-float *grpP_masses = NULL;
-float *grpD_masses = NULL;
+float *P_masses = NULL;
+float *D_masses = NULL;
+
 
 //============================================================================
 //                                    help
@@ -21,55 +22,79 @@ float *grpD_masses = NULL;
 void help()
 {
     fprintf(stderr, PROGRAM_ID "\n");
-    fprintf(stderr, "Usage: pfind <groupD> <statD> <groupP> <statP>\n");
+    fprintf(stderr, "Usage: pfind <D> <statD> <groupP> <statP>\n");
     exit(2);
 }
 
 //============================================================================
-//                               grpP_mass_cmp
+//                               P_mass_cmp
 // Sorts highest to lowest.
 //============================================================================
-int grpP_mass_cmp(const void *a0, const void *b0)
-{
-    uint64_t a = *((uint64_t *)a0);
-    uint64_t b = *((uint64_t *)b0);
-
-    if (grpP_masses[a] > grpP_masses[b]) return -1;
-    if (grpP_masses[a] < grpP_masses[b]) return 1;
-    return 0;
-}
 
 //============================================================================
-//                               grpD_mass_cmp
+//                               D_mass_cmp
 // Sorts highest to lowest.
 //============================================================================
-int grpD_mass_cmp(const void *a0, const void *b0)
+int D_mass_cmp(const void *a0, const void *b0)
 {
     group_t *a = (group_t *)a0;
     group_t *b = (group_t *)b0;
 
+    /* Always put group 0 (field) at the beginning */
     if (a->id == 0) return -1;
     if (b->id == 0) return 1;
 
-    if (grpD_masses[a->id] > grpD_masses[b->id]) return -1;
-    if (grpD_masses[a->id] < grpD_masses[b->id]) return 1;
+    if (a->npart > b->npart) return -1;
+    if (a->npart < b->npart) return +1;
     return 0;
 }
 
 //============================================================================
 //                           sort_group_progenitors
 //============================================================================
-uint32_t sort_group_progenitors(group_t *groups, uint64_t n_groups)
+int sort_group_progenitors(group_t *D, uint64_t n_groups)
 {
     uint64_t i;
-    for (i=1; i <= n_groups; i++)
+
+    for (i=0; i <= n_groups; i++)
     {
-        if (groups[i].ps.len == 0)
+#if 0
+        WARNIF(D[i].ps.len == 0, "Group %ld (id=%ld) has no progenitors?", i, D[i].id);
+        else
         {
-            fprintf(stderr, "Group %ld (%ld) has no progenitors?\n", i, groups[i].id);
-            assert(groups[i].ps.len != 0);
+            uint64_t j, sum=0;
+            for (j=0; j < D[i].index.len; j++) sum += D[i].index.v[j];
+            ERRORIF(sum != D[i].npart);
         }
-        qsort(groups[i].ps.v, groups[i].ps.len, sizeof(uint64_t), grpP_mass_cmp);
+#endif
+
+        group_t *cur_grp = &D[i];
+
+        int _mass_cmp(const void *a0, const void *b0)
+        {
+            uint64_t a = *((uint64_t *)a0);
+            uint64_t b = *((uint64_t *)b0);
+
+            //fprintf(stdout, "%ld %ld\n", cur_grp->ps.v[a], cur_grp->ps.v[b]);
+
+            /* Always put group 0 (field) at the end */
+            if (cur_grp->ps.v[a] == 0) return +1;
+            if (cur_grp->ps.v[b] == 0) return -1;
+
+            uint64_t npart = cur_grp->npart;
+
+            float afrac = (float)cur_grp->pfrac.v[a] / npart;
+            float bfrac = (float)cur_grp->pfrac.v[b] / npart;
+
+            //fprintf(stdout, "%f %f\n", afrac, bfrac);
+            if (afrac > bfrac) return -1;
+            if (afrac < bfrac) return +1;
+            return 0;
+        }
+
+        //fprintf(stdout, "***  %ld (%ld, %ld) ******************************\n", i, D[i].index.len, (D[i].index.len>0 ? D[i].pfrac.v[0] : -1));
+
+        qsort(D[i].index.v, D[i].index.len, sizeof(uint64_t), _mass_cmp);
     }
     return 0;
 }
@@ -77,17 +102,23 @@ uint32_t sort_group_progenitors(group_t *groups, uint64_t n_groups)
 //============================================================================
 //                             write_output_ascii
 //============================================================================
-uint32_t write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
+int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
 {
     uint64_t i,j;
     fprintf(out, "# %12s  %8s  %s\n", "GroupID(1)", "Nprog(2)", "Progenitors");
-    for (i=1; i <= n_groups; i++)
+    for (i=0; i <= n_groups; i++)
     {
-        fprintf(out, "  %12ld  ", groups[i].id);
+        //fprintf(out, "  %12ld  ", groups[i].id);
+        fprintf(out, "  %12ld(%ld)  ", groups[i].id, groups[i].npart);
         fprintf(out, "%8ld  ", groups[i].ps.len);
         for (j=0; j < groups[i].ps.len; j++)
-            fprintf(out, "%ld ", groups[i].ps.v[j]);
-            //fprintf(out, "%ld(%f) ", groups[i].ps[j], grpP_masses[groups[i].ps[j]]);
+        {
+            uint64_t pi = groups[i].index.v[j];
+            //fprintf(out, "%ld ", groups[i].ps.v[pi]);
+            fprintf(out, "%ld(%f,%ld) ", groups[i].ps.v[pi], (float)groups[i].pfrac.v[pi] / groups[i].npart, groups[i].pfrac.v[pi] );
+            //fprintf(out, "%ld(%ld) ", groups[i].ps.v[j], P[groups[i].ps.v[j]].npart);
+            //fprintf(out, "%ld(%f) ", groups[i].ps[j], P_masses[groups[i].ps[j]]);
+        }
         fprintf(out, "\n");
     }
     return 0;
@@ -96,23 +127,24 @@ uint32_t write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
 //============================================================================
 //                              build_prog_list
 //============================================================================
-uint32_t build_prog_list(FILE *fpD, FILE *fpP, 
-                         group_t *groups, uint64_t n_groupsD, uint64_t n_groupsP)
+int build_prog_list(FILE *fpD, FILE *fpP, 
+                    group_t *D, uint64_t nD, 
+                    group_t *P, uint64_t nP)
 {
-    uint64_t ND, NP;
+    uint64_t Dnpart, Pnpart;
     int read;
 
     char *line = NULL;
     size_t len;
 
     if ((read = getline(&line, &len, fpD)) < 0) return 1;
-    sscanf(line, "%ld", &ND);
+    sscanf(line, "%ld", &Dnpart);
     if ((read = getline(&line, &len, fpP)) < 0) return 1;
-    sscanf(line, "%ld", &NP);
+    sscanf(line, "%ld", &Pnpart);
 
-    ERRORIF(ND != NP, "Number of particles is not consistent in input.");
+    ERRORIF(Dnpart != Pnpart, "Number of particles is not consistent in input. %ld != %ld", Dnpart, Pnpart);
 
-    while (ND-- > 0 && NP-- > 0)
+    while (Dnpart-- > 0 && Pnpart-- > 0)
     {
         ERRORIF(feof(fpD) || feof(fpP), "Unexpected end of file encountered.");
 
@@ -120,20 +152,33 @@ uint32_t build_prog_list(FILE *fpD, FILE *fpP,
         // Read one group id from each file.
         //====================================================================
         uint64_t gidD, gidP;
-        if ((read = getline(&line, &len, fpD)) < 0) return 1;
+        if ((read = getline(&line, &len, fpD)) <= 0) return 1;
         sscanf(line, "%ld", &gidD);
-        //fprintf(stderr, "line=%s ND=%ld gidD=%ld  ngroupsD=%ld\n", line, ND, gidD, n_groupsD);
-        ERRORIF(gidD > n_groupsD, "gidD > n_groupsD");
+        ERRORIF(gidD > nD, "gidD %ld > number of groups (%ld)", gidD, nD);
 
-        if ((read = getline(&line, &len, fpP)) < 0) return 1;
+        if ((read = getline(&line, &len, fpP)) <= 0) return 1;
         sscanf(line, "%ld", &gidP);
-        ERRORIF(gidP > n_groupsP, "gidP > n_groupsP");
+        ERRORIF(gidP > nP, "gidP %ld > number of groups (%ld)", gidP, nP);
 
         //====================================================================
         // Add the new group.
         //====================================================================
-        groups[gidD].id = gidD;
-        set_add(&(groups[gidD].ps), gidP);
+        assert(set_empty(&D[gidD].ps) || D[gidD].id == gidD);
+
+        D[gidD].id = gidD;
+        int i = set_add(&D[gidD].ps, gidP);
+
+        //if (gidD == 2) eprintf("%ld\n", gidP);
+
+        //if (gidP == 2) eprintf("%ld\n", gidD);
+
+        list_ensure_index(&D[gidD].pfrac, i);
+        list_ensure_index(&D[gidD].index, i);
+        D[gidD].index.v[i] = i;
+        D[gidD].pfrac.v[i]++;
+
+        D[gidD].npart++;
+        P[gidP].npart++;
     }
 
     return 0;
@@ -142,9 +187,9 @@ uint32_t build_prog_list(FILE *fpD, FILE *fpP,
 //============================================================================
 //                             read_ahf_group_masses
 //============================================================================
-uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0)
+int read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
 {
-    uint32_t ret=0;
+    int ret=0;
     int read;
 
     char *line = NULL;
@@ -154,7 +199,7 @@ uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0)
 
     uint64_t n_groups=0;
     uint64_t allocd = 0;
-    float *masses = NULL;
+    group_t *groups = NULL;
 
     while (!ret && !feof(in))
     {
@@ -162,17 +207,14 @@ uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0)
         float df, mass;
 
         /* Read the whole line */
-        read = getline(&line, &len, in);
-        if (read <= 0 || line[0] == '#') continue;
+        if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
 
         if (n_groups == allocd)
         {
-            if (allocd == 0) allocd = 32;
-            else allocd *= 2;
-
-            masses = REALLOC(masses, float, allocd+1);
-            ERRORIF(masses == NULL, "No memory for mass list.");
-            memset(masses + n_groups+1, 0, (allocd-n_groups) * sizeof(float));
+            if (allocd == 0) allocd = 32; else allocd *= 2;
+            groups = REALLOC(groups, group_t, allocd+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + n_groups+1, 0, allocd-n_groups, group_t);
         }
 
         /* Now extract just the first 10 values */
@@ -192,15 +234,15 @@ uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0)
 
         if (read != 10) { ret = 3; break; }
 
-        masses[++n_groups] = mass;
+        groups[++n_groups].M = mass;
     }
 
-    masses[0] = 0;
+    groups[0].M = 0;
 
     if (line != NULL) free(NULL);
 
+    *groups0   = groups;
     *n_groups0 = n_groups;
-    *masses0   = masses;
 
     return ret;
 }
@@ -210,8 +252,10 @@ uint32_t read_ahf_groups_masses(FILE *in, float **masses0, uint64_t *n_groups0)
 //============================================================================
 int main(int argc, char **argv)
 {
-    group_t *groupsD;
-    uint64_t n_groupsD, n_groupsP;
+    uint64_t i;
+    group_t *D, *P;
+    uint64_t nD, nP;
+
     FILE *out = stdout;
     char *outname = NULL;
 
@@ -236,8 +280,7 @@ int main(int argc, char **argv)
                 help();
                 break;
             case 'o':
-                outname = MALLOC(char, strlen(optarg)+1);
-                strcpy(outname, optarg);
+                outname = optarg;
                 break;
         }
     }
@@ -247,46 +290,52 @@ int main(int argc, char **argv)
     if (outname != NULL)
     {
         out = fopen(outname, "w");
-        ERRORIF(out == NULL, "Can't open output file.");
+        ERRORIF(out == NULL, "Can't open %s.", outname);
     }
 
-    FILE *fpD = fopen(argv[optind++], "r");
-    ERRORIF(fpD == NULL, "Can't open groupD file.");
+    FILE *fpD = fopen(argv[optind], "r");
+    ERRORIF(fpD == NULL, "Can't open %s.", argv[optind]);
+    optind++;
 
-    FILE *fpGrpD = fopen(argv[optind++], "r");
-    ERRORIF(fpGrpD == NULL, "Can't open statD file.");
+    FILE *fpGrpD = fopen(argv[optind], "r");
+    ERRORIF(fpGrpD == NULL, "Can't open %s.", argv[optind]);
+    optind++;
 
-    FILE *fpP = fopen(argv[optind++], "r");
-    ERRORIF(fpP == NULL, "Can't open groupP file.");
+    FILE *fpP = fopen(argv[optind], "r");
+    ERRORIF(fpP == NULL, "Can't open %s.", argv[optind]);
+    optind++;
 
-    FILE *fpGrpP = fopen(argv[optind++], "r");
-    ERRORIF(fpGrpP == NULL, "Can't open statP file.");
+    FILE *fpGrpP = fopen(argv[optind], "r");
+    ERRORIF(fpGrpP == NULL, "Can't open %s.", argv[optind]);
+    optind++;
 
 
-    read_ahf_groups_masses(fpGrpP, &grpP_masses, &n_groupsP);
-    read_ahf_groups_masses(fpGrpD, &grpD_masses, &n_groupsD);
+    read_ahf_groups_masses(fpGrpD, &D, &nD);
+    read_ahf_groups_masses(fpGrpP, &P, &nP);
 
-    groupsD = CALLOC(group_t, n_groupsD+1);
-    ERRORIF(groupsD == NULL, "No memory for groups.");
-
-    ERRORIF(build_prog_list(fpD, fpP, groupsD, n_groupsD, n_groupsP),
-            "Unable to read group files.");
+    ERRORIF(build_prog_list(fpD, fpP, D, nD, P, nP), "Unable to read group files.");
 
     fclose(fpD);
     fclose(fpP);
     fclose(fpGrpD);
     fclose(fpGrpP);
 
-    fprintf(stderr, "n_groupsD = %ld\n", n_groupsD);
+    for (i=0; i <= nD; i++)
+    {
+        WARNIF(D[i].ps.len == 0, "Group %ld (id=%ld) has no progenitors?", i, D[i].id);
+        //eprintf("%ld  %ld\n", D[i].id, D[i].npart);
+    }
+
+    //fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
 
     //========================================================================
     // First sort the groups by mass and then each list of progenitors.
     // Sort is always highest to lowest.
     //========================================================================
-    qsort(groupsD+1, n_groupsD, sizeof(group_t), grpD_mass_cmp);
-    sort_group_progenitors(groupsD, n_groupsD);
+    qsort(D, nD+1, sizeof(group_t), D_mass_cmp);
+    sort_group_progenitors(D, nD);
 
-    write_output_ascii(out, groupsD, n_groupsD);
+    write_output_ascii(out, D, nD);
 
     if (out != stdout) fclose(stdout);
 
