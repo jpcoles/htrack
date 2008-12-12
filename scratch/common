@@ -1,0 +1,17 @@
+#DIR="/smaug/data/theorie/justin/Thickdisc/Oscar_cosmo/AHF"
+#FILES=`ls $DIR/halo1*.AHF_particles | xargs -r -I XXX basename XXX .AHF_particles | sort -r -n -t . -k2`
+#NPART=4303248
+
+#DIR="/smaug/data/theorie/justin/Thickdisc/Oscar_cosmo/AHF"
+#FILES=`ls $DIR/halo2*.AHF_particles | xargs -r -I XXX basename XXX .AHF_particles | sort -r -n -t . -k2`
+#NPART=3003679
+
+DIR="/smaug/data/theorie/justin/Thickdisc/Oscar_cosmo/AHF"
+FILES=`ls $DIR/halo3*.AHF_particles | xargs -r -I XXX basename XXX .AHF_particles | sort -r -n -t . -k2`
+NPART=2429427
+
+#DIR="/smaug/data/theorie/justin/Thickdisc/Oscar_cosmo/AHF"
+#FILES=`ls $DIR/halo4*.AHF_particles | xargs -r -I XXX basename XXX .AHF_particles | sort -r -n -t . -k2`
+#NPART=2648284
+
+export DIR FILES NPART

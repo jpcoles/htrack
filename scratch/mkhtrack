@@ -1,0 +1,19 @@
+#!/bin/bash
+
+#source common
+
+HTRACK=../../htrack
+
+rm -f $PREFIX.track_files
+
+for f in $FILES; do
+    z=`echo $f | awk 'BEGIN {FS="z"} {print $2}'`
+    if [ -e $f.pfN ]; then
+        echo $z $DIR/$f.AHF_halos $f.pfN >> $PREFIX.track_files
+    else
+        echo $z $DIR/$f.AHF_halos  >> $PREFIX.track_files
+    fi
+done
+
+$HTRACK -w ivmr -o $PREFIX -f $PREFIX.track_files
+

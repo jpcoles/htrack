@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#source common
+
+AHF2GRP="../../ahf2grp -b"
+
+rm -f _xargs
+for f in $FILES; do
+    ARGS="$NPART $DIR/$f.AHF_particles -o $f.grp+"
+    echo $ARGS >> _xargs
+done
+
+xargs -P 32 -n 4  -t -a _xargs $AHF2GRP

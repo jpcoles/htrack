@@ -1,0 +1,34 @@
+#!/bin/bash
+
+#source common
+
+PFIND=../../pfind
+
+rm -f _xargs
+
+P=
+D=
+for f in $FILES; do
+    if [ -z $D ]; then
+        D=$f
+        continue
+    elif [ -z $P ]; then
+        P=$f
+    else
+        D=$P
+        P=$f
+    fi
+
+    GRPD=$D.grp+
+    GRPP=$P.grp+
+    STATD=$DIR/$D.AHF_halos
+    STATP=$DIR/$P.AHF_halos
+
+    ARGS="$GRPD $STATD $GRPP $STATP -o $D.pfN"
+    #echo $CMD
+    echo $ARGS >> _xargs
+done 
+
+#xargs -P 1 -n 6  -t -a _xargs $PFIND
+xargs -P 32 -n 6  -t -a _xargs $PFIND
+
