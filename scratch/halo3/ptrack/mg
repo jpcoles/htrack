@@ -1,0 +1,19 @@
+#!/bin/bash
+#
+# Mark groups
+#
+
+GROUPFILE="$1"
+shift
+GRPS="$*"
+
+if [ "x$GRPS" == "x" ]; then
+    echo "No groups specified."
+    exit 1
+fi
+
+
+NPARTS=$(wc -l $GROUPFILE | awk '{print $1}')
+NPARTS=$((NPARTS-1))
+awk -vN="$NPARTS" -vG="$GRPS" 'BEGIN{print N; split(G, s); for (v in s) grps[v]="";} {if ($0 in grps) print NR;}' < $GROUPFILE
+

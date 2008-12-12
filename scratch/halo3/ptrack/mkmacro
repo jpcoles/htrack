@@ -1,0 +1,18 @@
+#!/bin/bash
+
+FILES=$(ls halo3.*.std | sort -n -t . -k2)
+
+echo "movie"
+for f in $FILES; do
+    F=$(basename $f .std)
+    echo "openb $F.std"
+    echo "loads 0"
+    echo "readarray $F.den"
+    echo "xarray logall wrbb -3 3"
+    #echo "shell sleep 0.5"
+    echo "closeb"
+    echo
+done
+
+echo "end"
+
