@@ -4,7 +4,7 @@ NVCC			 =	nvcc
 #NVCC			+=	-deviceemu 
 
 PLATFORM		 =	Darwin
-PLATFORM		 =	Linux
+#PLATFORM		 =	Linux
 #PLATFORM		 =	$(shell uname)
 USERSRC			 =	$(HOME)
 
@@ -25,7 +25,7 @@ ifeq ($(USE_GPU), True)
 endif
 
 CFLAGS  		+=	-Wall -g 
-CFLAGS  		+=	-O3
+CFLAGS  		+=	-O0
 
 CFLAGS 			+=	-Ijpeg-6b 
 

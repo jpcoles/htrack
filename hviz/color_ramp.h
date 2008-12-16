@@ -5,6 +5,7 @@ void color_ramp_grey(float *r, float *g, float *b);
 void color_ramp_hot2cold(float *r, float *g, float *b);
 void color_ramp_astro(float *r, float *g, float *b);
 void color_ramp_wrbb(float *r, float *g, float *b);
+void color_ramp_tipsy(float f, float *r, float *g, float *b);
 
 #endif
 

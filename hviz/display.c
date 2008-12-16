@@ -12,7 +12,7 @@ extern Environment env;
 
 void display_start(int argc, char **argv)
 {
-#if 0
+#if 1
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
 
     //glutInitWindowPosition(100,100);
@@ -20,6 +20,7 @@ void display_start(int argc, char **argv)
 
     glutInit(&argc,argv);
     glutCreateWindow("Halo Visualizer");
+    glutSetCursor(GLUT_CURSOR_NONE);
     viz_init();
     glutMainLoop();
 #endif

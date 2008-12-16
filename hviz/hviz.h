@@ -18,13 +18,8 @@ extern "C" {
 #endif
 
 
-#define SIM_STOPPED 0
-#define SIM_RUNNING 1
-#define SIM_PAUSED  2
-
-#define SVR_CMD_START_SIM   1000
-#define SVR_CMD_NEXT_FRAME  1001
-#define SVR_CMD_STOP_SIM    1002
+#define MODE_NONE   0
+#define MODE_TRACK  1
 
 #define MALLOC(type, n) (type *)malloc((n) * sizeof(type))
 #define REALLOC(ptr, type, n) (type *)realloc((ptr), (n) * sizeof(type))
@@ -66,9 +61,9 @@ typedef struct
 {
     float ox, oy, oz; /* Original position */
     float x, y, z;
-    double angle;
 
-    float roll, pitch, heading;
+    float tx, ty, tz;
+    float ux, uy, uz;
 
 } Eye;
 
@@ -124,7 +119,7 @@ typedef struct
     halo_list_t *hl;
     merger_tree_t mt;
 
-    float max_x, max_v;
+    float max_x, max_v, max_m;
 
     int spinning;
 
@@ -135,6 +130,12 @@ typedef struct
     int current_movie_frame;
 
     int background;
+
+    int mode;
+
+    int track_id;
+
+    int mouse_down;
 
 } Environment;
 

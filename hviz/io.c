@@ -94,7 +94,7 @@ int read_ahf_halos(FILE *in, halo_t **halos0, uint64_t *n_halos0)
     int read;
 
     char *line = NULL;
-    size_t len;
+    size_t len = 0;
 
     //VL(1) printf("Reading AHF format group file.\n");
 
@@ -185,6 +185,7 @@ int read_ahf_halos(FILE *in, halo_t **halos0, uint64_t *n_halos0)
     *halos0   = halos;
     *n_halos0 = n_halos;
 
+    fprintf(stderr, "n_halos=%ld", n_halos);
     return ret;
 }
 
@@ -195,7 +196,7 @@ int read_merger_tree(FILE *in, merger_tree_t *mt)
 {
     int i, ret = 0;
     char *line = NULL;
-    size_t len;
+    size_t len = 0;
     size_t allocd=0;
 
     mt->n_halos = 0;
@@ -229,4 +230,59 @@ int read_merger_tree(FILE *in, merger_tree_t *mt)
 
     return ret;
 }
+
+ssize_t getline(char **lineptr, size_t *n, FILE *stream)
+{
+    char *line;
+    size_t allocd;
+    size_t len = 0;
+    ssize_t result = 0;
+
+    if (lineptr == NULL || n == NULL || stream == NULL)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    line   = *lineptr;
+    allocd = *n;
+
+    if (line == NULL) allocd = 0;
+
+    flockfile(stream);
+
+    while (!feof(stream))
+    {
+        int i = fgetc(stream);
+        if (i == -1) 
+        {
+            result = -1;
+            break;
+        }
+
+        if (len == allocd)
+        {
+            if (allocd == 0) allocd = 120;
+            else allocd *= 2;
+            line = (char *)realloc(line, (allocd + 1) * sizeof(char));
+        }
+
+        line[len] = i;
+        len++;
+
+        if (i == '\n') 
+            break;
+    }
+
+    line[len] = '\0';
+    *lineptr = line;
+    *n = len;
+
+    result = len ? len : result;
+
+    funlockfile(stream);
+
+    return result;
+}
+
 

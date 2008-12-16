@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -34,6 +35,7 @@ int load_halo_files(FILE *in)
         {
             char *p = (char *)memchr(line, '\n', len);
             if (p) *p = '\0';
+            fprintf(stderr, "ASDFAS %s\n", line);
             hin = fopen(line, "r"); assert(hin != NULL);
             ret = read_merger_tree(hin, &env.mt);
             fclose(hin);
@@ -63,6 +65,7 @@ int load_halo_files(FILE *in)
 
     env.max_x = 0;
     env.max_v = 0;
+    env.max_m = 0;
     int i,j;
     for (i=0; i < env.t_max; i++)
     {
@@ -75,6 +78,8 @@ int load_halo_files(FILE *in)
             if      (env.hl[i].halo[j].VXc > env.max_v) env.max_v = env.hl[i].halo[j].VXc;
             else if (env.hl[i].halo[j].VYc > env.max_v) env.max_v = env.hl[i].halo[j].VYc;
             else if (env.hl[i].halo[j].VZc > env.max_v) env.max_v = env.hl[i].halo[j].VZc;
+
+            if (env.hl[i].halo[j].Mvir > env.max_m) env.max_m = env.hl[i].halo[j].Mvir;
         }
     }
 
@@ -112,16 +117,21 @@ int main(int argc, char **argv)
     env.screenWidth = 1024;
     env.screenHeight = 768;
     env.eye.x = env.eye.ox = 0; 
-    env.eye.y = env.eye.oy = 3;
-    env.eye.z = env.eye.oz = 3;
-    env.eye.angle = 0;
-    env.eye.roll = 
-    env.eye.pitch =
-    env.eye.heading = 0;
+    env.eye.y = env.eye.oy = 0;
+    env.eye.z = env.eye.oz = 2;
+    env.eye.tx = 0;
+    env.eye.ty = 0;
+    env.eye.tz = 1;
+    env.eye.ux = 0;
+    env.eye.uy = 1;
+    env.eye.uz = 0;
     env.make_movie = 0;
     env.movie_prefix = NULL;
     env.frame_buffer = NULL;
     env.current_movie_frame = 0;
+    env.mode = MODE_TRACK;
+    env.track_id = 0;
+    env.mouse_down = 0;
 
     //if (argc < 2) help();
 
@@ -184,7 +194,6 @@ int main(int argc, char **argv)
 
     load_halo_files(in);
     if (in != stdin) fclose(in);
-
 
 #if defined(HAVE_GPU) && defined(HAVE_NVIDIA_GPU)
     nvidia_init();
