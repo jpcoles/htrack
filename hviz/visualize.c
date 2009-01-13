@@ -18,7 +18,23 @@
 
 #define WITH_POINTS 0
 
-#define FAC 0.001
+//#define FAC .025
+#define FAC .001
+#define ANG 0.6
+//#define ANG 1.3
+
+#define Ex env.eye.x
+#define Ey env.eye.y
+#define Ez env.eye.z
+
+#define Ux env.eye.ux
+#define Uy env.eye.uy
+#define Uz env.eye.uz
+
+#define Tx env.eye.tx
+#define Ty env.eye.ty
+#define Tz env.eye.tz
+
 
 extern Environment env;
 
@@ -41,7 +57,8 @@ void viz_init() {}
 
 #else
 
-GLuint sphere;
+GLuint sphere[3];
+GLuint display_list;
 
 #define TIMEOUT 2
 
@@ -62,7 +79,7 @@ void viz_init()
     //glutTimerFunc(30,onTimer,0);
     //glutIdleFunc(onIdle);
 
-    glutMotionFunc(on2DDrag);
+    //glutMotionFunc(on2DDrag);
     glutPassiveMotionFunc(on2DDrag);
     glutMouseFunc(onClick);
     glutKeyboardFunc(onKeyboard);
@@ -96,8 +113,8 @@ void viz_init()
     glDepthFunc(GL_LEQUAL);
     //glDepthMask(GL_TRUE);
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-    //glEnable(GL_BLEND);
-    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 #if 0
     glEnable(GL_LIGHTING);
@@ -129,11 +146,17 @@ void viz_init()
     //========================================================================
     //========================================================================
 
-    sphere = glGenLists(1);
-    glNewList(sphere, GL_COMPILE);
-    glutWireSphere(1., 30, 30);
-    //glutSolidSphere(1., 50, 50);
-    glEndList();
+    display_list = glGenLists(1);
+
+    int i=0, r=8;
+    GLuint start = glGenLists(3);
+    for (i=0; i < 3; i++, r *= 2)
+    {
+        sphere[i] = start + i;
+        glNewList(sphere[i], GL_COMPILE);
+            glutWireSphere(1., r, r);
+        glEndList();
+    }
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
@@ -144,18 +167,9 @@ void toggleSpinning()
     env.spinning = !env.spinning;
 }
 
-#define Ux env.eye.ux
-#define Uy env.eye.uy
-#define Uz env.eye.uz
-
-#define Tx env.eye.tx
-#define Ty env.eye.ty
-#define Tz env.eye.tz
-
-#define ANG 1.3
 void pitch(int dir)
 {
-    const float t = ANG * M_PI/180. * -dir;
+    const float t = ANG * M_PI/180. * dir;
 
     float Ix = (Uy * Tz  -  Uz * Ty);
     float Iy = (Uz * Tx  -  Ux * Tz);
@@ -242,34 +256,34 @@ void yaw(int dir)
 
 void strafe(int dir)
 {
-    const float dist = FAC * dir;
+    const float dist = FAC * -dir;
 
     float i = (Uy * Tz  -  Uz * Ty);
     float j = (Uz * Tx  -  Ux * Tz);
     float k = (Ux * Ty  -  Uy * Tx);
     float r = sqrt(pow(i,2) + pow(j,2) + pow(k,2));
 
-    env.eye.x += (i/r) * dist;
-    env.eye.y += (j/r) * dist;
-    env.eye.z += (k/r) * dist;
+    Ex += (i/r) * dist;
+    Ey += (j/r) * dist;
+    Ez += (k/r) * dist;
 }
 
 void walk(int dir)
 {
-    const float dist = FAC * dir;
+    const float dist = FAC * -dir;
 
-    env.eye.x += Tx * dist;
-    env.eye.y += Ty * dist;
-    env.eye.z += Tz * dist;
+    Ex += Tx * dist;
+    Ey += Ty * dist;
+    Ez += Tz * dist;
 }
 
 void fly(int dir)
 {
     const float dist = FAC * -dir;
 
-    env.eye.x += Ux * dist;
-    env.eye.y += Uy * dist;
-    env.eye.z += Uz * dist;
+    Ex += Ux * dist;
+    Ey += Uy * dist;
+    Ez += Uz * dist;
 }
 
 void on2DDrag(int x0, int y0)
@@ -280,7 +294,6 @@ void on2DDrag(int x0, int y0)
     int x = x0 - oldx;
     int y = y0 - oldy;
 
-    fprintf(stderr, "x=%i\n", x);
     if (oldx != -10000 && x) yaw((x > 0) * 2 - 1);
     if (oldy != -10000 && y) pitch((y < 0) * 2 - 1);
 
@@ -296,9 +309,6 @@ void on3DDrag(int x0, int y0, int z0)
     float xd, yd, zd;
     float x, y, z;
     float r;
-
-    fprintf(stderr, "%i %i %i -- ", x0, y0, z0);
-    fprintf(stderr, "%f %f %f\n", env.eye.x, env.eye.y, env.eye.z);
 
     if (x0) strafe((x0 > 0) * 2 - 1);
     if (y0)   walk((y0 > 0) * 2 - 1);
@@ -354,20 +364,86 @@ void on3DDrag(int x0, int y0, int z0)
 
 void on3DRotate(int rx0, int ry0, int rz0)
 {
-    fprintf(stderr, "%i %i %i -- ", rx0, ry0, rz0);
     if (rx0) pitch((rx0 > 0) * 2 - 1);
     if (ry0)   yaw((ry0 < 0) * 2 - 1);
-    if (rz0)  roll((rz0 < 0) * 2 - 1);
+    if (rz0)  roll((rz0 > 0) * 2 - 1);
 
     glutPostRedisplay();
 }
 
+int ray_halo_intersect(float cx, float cy, float cz, float r)
+{
+    float vx = cx - Ex;  // this is the vector from p to c
+    float vy = cy - Ey;  // this is the vector from p to c
+    float vz = cz - Ez;  // this is the vector from p to c
+    
+    float vdotT = vx*Tx + vy*Ty + vz*Tz;
+    if (vdotT < 0) // when the sphere is behind the origin p
+    {
+        // note that this case may be dismissed if it is considered
+        // that p is outside the sphere
+        
+        fprintf(stderr, "Behind!\n");
+        return 0;
+    }        
+    else // center of sphere projects on the ray
+    {
+        float p = vdotT / (Ex*Ex + Ey*Ey + Ez*Ez);
+        float pcx = vx * p;
+        float pcy = vy * p;
+        float pcz = vz * p;
+        
+        //fprintf(stderr, "X  %f, %f\n", (sqrt(pow(pcx,2) + pow(pcy,2) + pow(pcz,2))), r);
+        return (sqrt(pow(pcx,2) + pow(pcy,2) + pow(pcz,2)) < r);
+    }
+}
+
 void onClick(int button, int state, int x, int y) 
 {
-    env.mouse_down = (state == GLUT_DOWN) * (button+1);
-    glutTimerFunc(TIMEOUT, onTimer,0);
+    //env.mouse_down = (state == GLUT_DOWN) * (button+1);
+    //glutTimerFunc(TIMEOUT, onTimer,0);
 
-    fprintf(stderr, "click %i %i\n", button, state);
+    fprintf(stderr, "HERE!\n");
+
+    float nearest = -1;
+    int i;
+    for (i=0; i < env.mt.n_halos; i++)
+    {
+        int ii = env.mt.h[i][env.t];
+
+        if (ii == 0) continue;
+
+        halo_list_t *hl = &env.hl[env.t];
+        halo_t *halo = &hl->halo[ ii ];
+
+        float hx = halo->w.Xc;
+        float hy = halo->w.Yc;
+        float hz = halo->w.Zc;
+
+        float r = 
+              sqrt(
+                  pow(Ex - hx, 2)
+                + pow(Ey - hy, 2)
+                + pow(Ez - hz, 2));
+
+        float hr = halo->w.Rvir;
+
+        if (r <= hr) continue;
+
+        if (ray_halo_intersect(hx, hy, hz, r))
+        {
+            if (nearest == -1 || r < nearest)
+            {
+                nearest = r;
+                fprintf(stderr, "Intersection with %i\n", ii);
+                env.selected_halo = i;
+            }
+        }
+    }
+
+    if (nearest == -1)
+        env.selected_halo = 0;
+
 }
 
 void onKeyboard(unsigned char key, int x, int y)
@@ -376,24 +452,37 @@ void onKeyboard(unsigned char key, int x, int y)
     {
         case 127: // backspace
             if (env.t > 0) env.t--;
+            env.dirty = 1;
             break;
         case ' ':
             if (env.t < env.t_max-1) env.t++;
+            env.dirty = 1;
             break;
 
         case 'a': case 'A':
-            roll(1);
+            roll(-1);
             break;
         case 'd': case 'D':
-            roll(-1);
+            roll(1);
             break;
 
         case 'w': case 'W':
-            pitch(-1);
+            pitch(1);
             break;
 
         case 's': case 'S':
-            pitch(1);
+            pitch(-1);
+            break;
+
+
+        case 't': case 'T':
+            env.mode ^= MODE_HALOTRACKS;
+            env.dirty = 1;
+            break;
+
+        case 'b': case 'B':
+            env.mode ^= MODE_HALOBODIES;
+            env.dirty = 1;
             break;
 
         default: 
@@ -428,7 +517,7 @@ void onReshape(int width, int height)
     glLoadIdentity();                   // Reset The Projection Matrix
 
     // Calculate The Aspect Ratio Of The Window
-    gluPerspective(45.0f,(GLfloat)width/(GLfloat)height, 0.01f, 101.0f); 
+    gluPerspective(45.0f,(GLfloat)width/(GLfloat)height, 0.001f, 101.0f); 
 
     glMatrixMode(GL_MODELVIEW);             // Select The Modelview Matrix
     glLoadIdentity();                   // Reset The Modelview Matrix
@@ -439,47 +528,294 @@ void onUpdateInfo()
     glutStrokeCharacter(GLUT_STROKE_ROMAN, 'H');
 }
 
+void draw_halos()
+{
+    unsigned int i, j, t;
+    uint64_t active = 0;
+    for (i=0; i < env.mt.n_halos; i++)
+        if (env.mt.h[i][env.t] != 0) active++;
+
+    uint64_t n=0;
+    for (i=0; i < env.mt.n_halos; i++)
+    {
+        for (t=0; t < env.t_max; t++)
+        {
+            //if (i != 1) continue;
+            if (t != env.t) continue;
+            //if (i > 0 && t != env.t) continue;
+
+            //if (!(i == 0)
+            //&& t != env.t) continue;
+
+            int ii = env.mt.h[i][t];
+
+            if (ii == 0) continue;
+
+#if 0
+            if (1
+//              i != 1 
+            &&  i != 2
+            &&  i != 3
+//          &&  i != 4
+//          &&  i != 5
+//          &&  i != 1738
+//          &&  i != 7
+            ) continue;
+#endif
+
+            n++;
+
+            halo_list_t *hl = &env.hl[t];
+            //fprintf(stderr, "%i\n", env.t_max);
+            //fprintf(stderr, "%i/%ld %i/%i  %i/%ld\n", i, (long int)env.mt.n_halos, t, env.t_max, ii, (long int)hl->n_halos);
+            assert(ii <= hl->n_halos);
+            halo_t *halo = &hl->halo[ ii ];
+
+            float hx = halo->w.Xc;
+            float hy = halo->w.Yc;
+            float hz = halo->w.Zc;
+
+            float r2 = 
+                  pow(Ex - hx, 2)
+                + pow(Ey - hy, 2)
+                + pow(Ez - hz, 2);
+
+            //float R = halo->w.Mvir;
+            //float R = halo->w.Rmax;
+            //float R = halo->w.Rvir * 0.001;
+            float R = halo->w.Rvir;
+            //float R = halo->w.Rvir * 0.001;
+            //float R = 0.001;
+
+            float hr2 = pow(R, 2);
+
+            //if (r2 <= hr2) continue;
+
+            glPushMatrix();
+
+            float r = (float)i / env.mt.n_halos; 
+            float g = (float)i / env.mt.n_halos;
+            float b = (float)i / env.mt.n_halos;
+            float a = fabsf(1/(i+1)); 
+
+            float m[16] = {
+                halo->w.Eax, halo->w.Ebx, halo->w.Ecx, 0,
+                halo->w.Eay, halo->w.Eby, halo->w.Ecy, 0,
+                halo->w.Eaz, halo->w.Ebz, halo->w.Ecz, 0,
+                          0,           0,           0, 1
+            };
+            
+            //glLoadMatrixf(m);
+
+            //glMultMatrixf(m);
+#if 1
+            glTranslatef(halo->w.Xc * 1, 
+                         halo->w.Yc * 1, 
+                         halo->w.Zc * 1);
+#endif
+
+#if 0
+            glBegin(GL_LINES);
+                glColor4f(1,0,0,1);
+                glVertex3f(0,0,0);
+                glVertex3f(halo->Eax*R*halo->w.a, halo->Eay*R*halo->w.a, halo->Eaz*R*halo->w.a);
+                glColor4f(0,1,0,1);
+                glVertex3f(0,0,0);
+                glVertex3f(halo->Eax*R*halo->w.a/2, halo->Eay*R*halo->w.a/2, halo->Eaz*R*halo->w.a/2);
+#if 1
+                glColor4f(0,1,0,1);
+                glVertex3f(0,0,0);
+                glVertex3f(halo->Ebx*R*halo->w.b, halo->Eby*R*halo->w.b, halo->Ebz*R*halo->w.b);
+                glColor4f(0,0,1,1);
+                glVertex3f(0,0,0);
+                glVertex3f(halo->Ecx*R*halo->w.c, halo->Ecy*R*halo->w.c, halo->Ecz*R*halo->w.c);
+#endif
+            glEnd();
+#endif
+
+#if 1
+            glScalef(halo->a * R,
+                     halo->b * R,
+                     halo->c * R);
+#endif
+
+            float alpha = 0.1; //exp(-pow((int)t-(int)env.t,2) / env.t_max) / 2;
+            //float alpha = exp(-pow((int)t-(int)env.t,2) / env.t_max) / 2;
+            //fprintf(stderr, "%f\n", alpha);
+
+            //color_ramp_tipsy((float)(n)/7., &r, &g, &b);
+            if (alpha > .01)
+            {
+                //color_ramp_wrbb(&r, &g, &b);
+                //color_ramp_grey(&r, &g, &b);
+                //color_ramp_hot2cold(&r, &g, &b);
+                //color_ramp_astro(&r, &g, &b);
+                //color_ramp_tipsy((float)(i+1) / 10., &r, &g, &b);
+                color_ramp_tipsy((float)i / env.mt.n_halos, &r, &g, &b);
+#if 0
+                if (t == env.t)
+                    glColor4f(1, 0, 0, 1);
+                else
+#endif
+
+                if (env.selected_halo == i)
+                    glColor4f(0, 1, 0, 1);
+                else
+                    glColor4f(r, g, b, alpha);
+
+                glColor4f(r, g, b, alpha);
+                if (i == 31 || i == 413)
+                    glColor4f(r,g,b, 1);
+
+
+                int mi = 3 - log10(R);
+                if (mi > 2) mi = 2;
+                glCallList(sphere[mi]);
+            }
+            glPopMatrix();
+
+#if 0
+            glDisable(GL_LIGHTING);
+            glPushMatrix();
+            glColor4f(1,0,0,1);
+            glTranslatef(halo->w.Xc * 1,
+                         halo->w.Yc * 1,
+                         halo->w.Zc * 1);
+            glScalef(10,10,10);
+            glutStrokeCharacter(GLUT_STROKE_ROMAN, '0'+ii);
+            glPopMatrix();
+#endif
+
+        }
+    }
+}
+
+void draw_tracks()
+{
+    float r,g,b;
+    unsigned int i;
+    uint64_t t=0;
+    //for (i=0; i < 10; i++)
+    for (i=0; i < env.mt.n_halos; i++)
+    {
+#if 1
+            if (1
+//              i != 1 
+//          &&  i != 2
+//          &&  i != 3
+//          &&  i != 4
+//          &&  i != 5
+            &&  i != 31
+            &&  i != 413
+            &&  i >= 64
+//          &&  i != 1738
+            ) continue;
+#endif
+
+        color_ramp_tipsy((float)i / env.mt.n_halos, &r, &g, &b);
+        glColor4f(r, g, b, 1);
+        //glColor4f(1, 1, 1, 1);
+
+        float lx=0, ly=0, lz=0;
+
+        glBegin(GL_LINE_STRIP);
+
+        int first=1;
+        for (t=0; t < env.t_max; t++)
+        {
+            //if (! ( 3 <= env.t_max-t&&env.t_max-t <= 4) ) continue;
+
+            //glColor4f(0, 1, 1, 1.0);
+            //if (i == 31)
+                //glColor4f(0, 1, 0, 1.0);
+            int ii = env.mt.h[i][t];
+
+            if (ii == 0) continue;
+
+            halo_t *halo = &env.hl[t].halo[ ii ];
+
+            float M = halo->w.Mvir;
+            //if (M < 0.01) continue;
+
+            float hx = halo->w.Xc;
+            float hy = halo->w.Yc;
+            float hz = halo->w.Zc;
+
+            //if (halo->npart < 30)
+                //continue;
+
+            //if (!first)
+            {
+                //glVertex3f(lx, ly, lz);
+                glVertex3f(hx, hy, hz);
+            }
+
+            lx = hx;
+            ly = hy;
+            lz = hz;
+        }
+
+        glEnd();
+    }
+}
+
 void onUpdate() 
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glLoadIdentity();                   // Reset The Modelview Matrix
 
-#if 0
-    if (env.mode == MODE_TRACK)
+#if 1
+    if (env.mode & MODE_TRACK)
     {
         int ii = env.mt.h[env.track_id][env.t];
         if (ii != 0)
         {
-            env.eye.tx = env.hl[env.t].halo[ ii ].Xc / env.max_x;
-            env.eye.ty = env.hl[env.t].halo[ ii ].Yc / env.max_x;
-            env.eye.tz = env.hl[env.t].halo[ ii ].Zc / env.max_x;
-
             float i, j, k;
             float i2, j2, k2;
             float r;
 
-            i = (env.eye.uy * env.eye.tz  -  env.eye.uz * env.eye.ty);
-            j = (env.eye.uz * env.eye.tx  -  env.eye.ux * env.eye.tz);
-            k = (env.eye.ux * env.eye.ty  -  env.eye.uy * env.eye.tx);
+            Tx = env.hl[env.t].halo[ ii ].w.Xc - Ex;
+            Ty = env.hl[env.t].halo[ ii ].w.Yc - Ey;
+            Tz = env.hl[env.t].halo[ ii ].w.Zc - Ez;
 
-            i2 = (env.eye.ty * k  -  env.eye.tz * j);
-            j2 = (env.eye.tz * i  -  env.eye.tx * k);
-            k2 = (env.eye.tx * j  -  env.eye.ty * i);
+            r = sqrt(pow(Tx,2) + pow(Ty,2) + pow(Tz,2));
+
+            Tx /= r;
+            Ty /= r;
+            Tz /= r;
+
+            i = (Uy * -Tz  -  Uz * -Ty);
+            j = (Uz * -Tx  -  Ux * -Tz);
+            k = (Ux * -Ty  -  Uy * -Tx);
+
+            i2 = (-Ty * k  -  -Tz * j);
+            j2 = (-Tz * i  -  -Tx * k);
+            k2 = (-Tx * j  -  -Ty * i);
 
             r = sqrt(pow(i2,2) + pow(j2,2) + pow(k2,2));
 
-            env.eye.ux = i2/r;
-            env.eye.uy = j2/r;
-            env.eye.uz = k2/r;
+            Ux = i2/r;
+            Uy = j2/r;
+            Uz = k2/r;
+#if 0
+        gluLookAt(
+            env.eye.x,  env.eye.y,  env.eye.z,  
+            env.hl[env.t].halo[ ii ].w.Xc,
+            env.hl[env.t].halo[ ii ].w.Yc,
+            env.hl[env.t].halo[ ii ].w.Zc,
+            env.eye.ux, env.eye.uy, env.eye.uz);
+#endif
         }
     }
 #endif
 
     gluLookAt(
-        env.eye.x,  env.eye.y,  env.eye.z,  
-        env.eye.x-env.eye.tx, env.eye.y-env.eye.ty, env.eye.z-env.eye.tz,
-        env.eye.ux, env.eye.uy, env.eye.uz);
+        Ex,    Ey,    Ez,  
+        Ex+Tx, Ey+Ty, Ez+Tz,
+        Ux,    Uy,    Uz);
+
+
 
     float cx = env.pointer.x;
     float cy = env.pointer.y;
@@ -488,76 +824,25 @@ void onUpdate()
     //glEnable(GL_LIGHTING);
     //glEnable(GL_LIGHT0);                 // Enable light source
 
-    GLfloat light_pos[] = {env.eye.x, env.eye.y, env.eye.z, 1};
+    //GLfloat light_pos[] = {env.eye.x, env.eye.y, env.eye.z, 1};
 
-    GLfloat light_dir[] = {env.eye.tx, env.eye.ty, env.eye.tz};
+    //GLfloat light_dir[] = {env.eye.tx, env.eye.ty, env.eye.tz};
     //GLfloat light_dir[] = {env.eye.x-env.pointer.x, env.eye.y-env.pointer.y, env.eye.z-env.pointer.z};
 
-    glLightfv(GL_LIGHT0, GL_POSITION,       light_pos);
-    glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, light_dir);
+    //glLightfv(GL_LIGHT0, GL_POSITION,       light_pos);
+    //glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, light_dir);
 
-    halo_list_t *hl = &env.hl[env.t];
-
-    unsigned int i;
-    uint64_t active = 0;
-    for (i=0; i < env.mt.n_halos; i++)
-        if (env.mt.h[i][env.t] != 0) active++;
-
-    uint64_t n=0;
-    for (i=0; i < env.mt.n_halos; i++)
+    if (env.dirty)
     {
-        int ii = env.mt.h[i][env.t];
-
-        if (ii == 0) continue;
-
-        n++;
-
-        halo_t *halo = &hl->halo[ ii ];
-
-        glPushMatrix();
-
-#if 0
-        float r = fabsf(halo->Mvir); 
-        float g = fabsf(halo->Mvir); 
-        float b = fabsf(halo->Mvir); 
-#else
-#if 0
-        float r = (float)n / active; 
-        float g = (float)n / active;
-        float b = (float)n / active;
-        float a = fabsf(1/(i+1)); 
-#else
-        float r = (float)i / env.mt.n_halos; 
-        float g = (float)i / env.mt.n_halos;
-        float b = (float)i / env.mt.n_halos;
-        float a = fabsf(1/(i+1)); 
-#endif
-#endif
-
-
-        glTranslatef((halo->Xc / env.max_x) * 1, 
-                     (halo->Yc / env.max_x) * 1, 
-                     (halo->Zc / env.max_x) * 1);
-        glScalef(halo->a * halo->Mvir / env.max_m,
-                 halo->b * halo->Mvir / env.max_m,
-                 halo->c * halo->Mvir / env.max_m);
-
-#if 0
-        glScalef(halo->Mvir * halo->a,
-                 halo->Mvir * halo->b,
-                 halo->Mvir * halo->c);
-#endif
-        //color_ramp_wrbb(&r, &g, &b);
-        //color_ramp_grey(&r, &g, &b);
-        //color_ramp_hot2cold(&r, &g, &b);
-        //color_ramp_astro(&r, &g, &b);
-        color_ramp_tipsy((float)i / env.mt.n_halos, &r, &g, &b);
-        glColor4f(r, g, b, 1);
-        //glColor4f(1, 0, 0, 1);
-        //glColor4f(1, 1, 1, 1);
-        glCallList(sphere);
-        //glutSolidSphere(1., 50, 50);
-        glPopMatrix();
+        env.dirty = 0;
+        glNewList(display_list, GL_COMPILE_AND_EXECUTE);
+        if (env.mode & MODE_HALOBODIES) draw_halos();
+        if (env.mode & MODE_HALOTRACKS) draw_tracks();
+        glEndList();
+    }
+    else
+    {
+        glCallList(display_list);
     }
 
     if (env.make_movie)
@@ -567,7 +852,7 @@ void onUpdate()
         save_frame_buffer();
     }
 
-#if  1
+#if  0
     glBegin(GL_LINES);
     glColor4f(1,0,0,1);
     glVertex3f(-.5, 0, 0);

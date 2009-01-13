@@ -76,4 +76,11 @@ dist: clean
 	cp *.jpg dist/
 	cp -R jpeg-6b dist/
 
+bindist: all
+	mkdir -p hviz-v0.0
+	cp hviz hviz-v0.0
+	cp -R sample hviz-v0.0/
+	tar cvvf hviz-v0.0.tar hviz-v0.0
+	gzip hviz-v0.0.tar
+
 

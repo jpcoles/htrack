@@ -18,8 +18,10 @@ extern "C" {
 #endif
 
 
-#define MODE_NONE   0
-#define MODE_TRACK  1
+#define MODE_NONE               0x00
+#define MODE_TRACK              0x01
+#define MODE_HALOTRACKS         0x02
+#define MODE_HALOBODIES         0x04
 
 #define MALLOC(type, n) (type *)malloc((n) * sizeof(type))
 #define REALLOC(ptr, type, n) (type *)realloc((ptr), (n) * sizeof(type))
@@ -69,6 +71,29 @@ typedef struct
 
 typedef struct
 {
+    float Xc, Yc, Zc;
+    float VXc, VYc, VZc;
+    float Mvir, Rvir;
+    float Vmax, Rmax;
+    float sigV;
+    float lambda;
+    float Lx, Ly, Lz;
+    float a, Eax, Eay, Eaz;
+    float b, Ebx, Eby, Ebz;
+    float c, Ecx, Ecy, Ecz;
+    float ovdens;
+    float Redge;
+    float nbins;
+    float Ekin;
+    float Epot;
+    float mbp_offset;
+    float com_offset;
+    float r2;
+    float lambdaE;
+} world_t;
+
+typedef struct
+{
     int npart, nvpart;
     float Xc, Yc, Zc;
     float VXc, VYc, VZc;
@@ -89,6 +114,7 @@ typedef struct
     float com_offset;
     float r2;
     float lambdaE;
+    world_t w;
 } halo_t;
 
 
@@ -136,6 +162,10 @@ typedef struct
     int track_id;
 
     int mouse_down;
+
+    int dirty;
+
+    int selected_halo;
 
 } Environment;
 

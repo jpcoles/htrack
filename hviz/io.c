@@ -194,40 +194,41 @@ int read_ahf_halos(FILE *in, halo_t **halos0, uint64_t *n_halos0)
 //============================================================================
 int read_merger_tree(FILE *in, merger_tree_t *mt)
 {
-    int i, ret = 0;
+    int i, j, ret = 0;
     char *line = NULL;
     size_t len = 0;
-    size_t allocd=0;
 
-    mt->n_halos = 0;
-    mt->n_zs    = 0;
-    mt->h       = NULL;
     while (!ret && !feof(in))
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        GROW_ARRAY(mt->h, uint64_t *, mt->n_halos, allocd, 2, 32);
+        sscanf(line, "%ld %ld\n", &mt->n_halos, &mt->n_zs);
+        break;
+    }
 
-        mt->h[mt->n_halos] = NULL;
+    mt->h = MALLOC(uint64_t *, mt->n_halos);
+    for (i=0; i < mt->n_halos; i++)
+        mt->h[i] = MALLOC(uint64_t, mt->n_zs);
+
+    i=0;
+    while (!ret && !feof(in))
+    {
+        if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
 
         char *ap;
         char *lineptr = line;
-        size_t allocd2 = 0;
-        for (i=0; (ap = strsep(&lineptr, " \t\n")) != NULL; )
+        for (j=0; (ap = strsep(&lineptr, " \t\n")) != NULL; )
         {
             if (*ap != '\0')
-            {
-                GROW_ARRAY(mt->h[mt->n_halos], uint64_t, i, allocd2, 2, 32);
-                mt->h[mt->n_halos][i] = atol(ap);
-                i++;
-            }
+                mt->h[i][mt->n_zs - ++j] = atol(ap);
         }
 
-        if (mt->n_halos > 0) assert(mt->n_zs == i);
-        mt->n_zs = i;
-
-        mt->n_halos++;
+        assert(mt->n_zs == j);
+        i++;
     }
 
+    assert(i == mt->n_halos);
+
+    //fprintf(stderr, "** %ld\n", mt->n_zs);
     return ret;
 }
 
