@@ -67,7 +67,11 @@ int list_ensure_index(list_t *list, uint64_t index)
         /* IGNORE: No need to initialize anything. We keep track of how many valid objects there are. */
     }
 
-    if (index >= list->len) list->len = index+1;
+    if (index >= list->len) 
+    {
+        list->len = index+1;
+        list->v[index] = 0;
+    }
 
     return 0;
 }

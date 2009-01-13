@@ -39,6 +39,7 @@ typedef struct
     uint64_t id;
     uint64_t npart;
     float M;
+    float vMax;
     set_t ps;
     list_t pfrac;
     set_t belong;

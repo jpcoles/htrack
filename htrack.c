@@ -74,97 +74,54 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
 
         set_add(&order, gid);
 
+        for (i=0; i < nprog; i++)
+            set_add(&D[gid].ps, atol(strtok(NULL, DELIM)));
+    }
+
+    uint64_t n_not_first = 0;
+
+    for (i=0; i < order.len; i++)
+    {
+        uint64_t gid = order.v[i];
+
+        D[gid].pid = 0;
+
+        //if (D[gid].Mvir < 5e7) continue;
+
         //====================================================================
         // Find the first progenitor that passes all acceptance criteria.
         // If we accept it, then add it to the list of used groups so that
         // it will not be considered again.
         //====================================================================
-        p = 0;
-        for (i=0; i < nprog; i++)
-        {
-            p = atol(strtok(NULL, DELIM));
-            set_add(&D[gid].ps, p);
-        }
-    }
-
-    for (i=0; i < order.len; i++)
-    {
-        //eprintf("i ---- %i\n", i);
-        uint64_t gid = order.v[i];
-
         int accept = 0;
-
-#if 0
-        if (set_in(&used, gid) < 0
-         && set_in(&D[gid].ps, gid) < 0)
-        {
-            for (j=0; j < seen.len; j++)
-            {
-                if ((i=set_in(&D[seen.v[j]].ps, gid)) >= 0)
-                {
-                    uint64_t id = D[seen.v[j]].ps.v[i];
-                    if ((fabs(D[gid].vMax - P[id].vMax)/P[id].vMax) < 0.002)
-                        accept = 1;
-                }
-            }
-            //accept = 1;
-        }
-#endif
-
-        D[gid].pid = 0;
-
         for (j=0; j < D[gid].ps.len && !accept; j++)
         {
             p = D[gid].ps.v[j];
-            accept  = set_in(&used, p) < 0;
-#if 1
-            accept &= (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt));
-            accept &= (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
-#if 0
-            if (! (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p])) )
-            {
-                if (set_in(&used, gid) < 0)
-                {
-                    p = gid;
-                    accept = 1;
-                }
-            }
-#endif
-#endif
+            accept = 1 //set_in(&used, p) < 0
+                  && (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt))
+                  && (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
                   ;
+            if (accept) break;
         }
 
         if (accept) 
         {
-#if 0
-            if (P[p].vMax > 2*D[gid].vMax)             // Massive jump in mass
-            //if (P[p].Mvir > 2*D[gid].Mvir)             // Massive jump in mass
-            {
-                if ((j=set_in(&order, p)) >= 0 && D[p].pid != 0)
-                {
-                    eprintf("%ld %ld %ld\n", gid, p, D[p].pid);
-#if 1
-                    int k = set_in(&used, D[p].pid);
-                    assert(k >= 0);
-                    used.len = k;
-                    set_add(&used, p);
-                    D[p].pid = p;
-                    i = j;
-                    continue;
-#endif
-                }
-            }
-#endif
-
             set_add(&used, p);
             D[gid].pid = p;
+            if (j != 0 || D[gid].ps.len == 1)
+            {
+                eprintf("%ld\n", gid);
+                n_not_first++;
+            }
         }
 
     }
 
+    eprintf("n_not_first = %ld of %ld (%f)\n", n_not_first, order.len, (float)n_not_first/order.len);
+
     set_free(&used);
 
-    if (line != NULL) free(NULL);
+    if (line != NULL) free(line);
 
     return 0;
 }
@@ -172,7 +129,7 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
 //============================================================================
 //                                build_tracks
 //============================================================================
-int build_tracks(z_t *zs, uint64_t n_zs, track_t  **tracks0, uint64_t *n_tracks0)
+int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 {
     track_t *tracks = NULL;
     size_t allocd = 0;
@@ -555,6 +512,9 @@ int main(int argc, char **argv)
         float dt = (cosmo_physical_time(&c, zD) - cosmo_physical_time(&c, zP)) * SECONDS_PER_GYR;
 
         assert(pf_fp != NULL);
+
+        eprintf("__________________________________________________________________________\n");
+        eprintf("  %f\n", zD);
 
         track(pf_fp, D, P, dt);
         zs[n_zs].n_groups = nD;

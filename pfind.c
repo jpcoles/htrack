@@ -168,17 +168,16 @@ int build_prog_list(FILE *fpD, FILE *fpP,
         D[gidD].id = gidD;
         int i = set_add(&D[gidD].ps, gidP);
 
-        //if (gidD == 2) eprintf("%ld\n", gidP);
+        ERRORIF(list_ensure_index(&D[gidD].index, i), "No memory.");
+        ERRORIF(list_ensure_index(&D[gidD].pfrac, i), "No memory.");
 
-        //if (gidP == 2) eprintf("%ld\n", gidD);
-
-        list_ensure_index(&D[gidD].pfrac, i);
-        list_ensure_index(&D[gidD].index, i);
         D[gidD].index.v[i] = i;
         D[gidD].pfrac.v[i]++;
 
         D[gidD].npart++;
         P[gidP].npart++;
+
+        //assert(P[gidP].npart > 1348624510);
     }
 
     return 0;
@@ -204,7 +203,7 @@ int read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
     while (!ret && !feof(in))
     {
         uint32_t di;
-        float df, mass;
+        float df;
 
         /* Read the whole line */
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
@@ -217,27 +216,33 @@ int read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
             MEMSET(groups + n_groups+1, 0, allocd-n_groups, group_t);
         }
 
+        n_groups++;
+
         /* Now extract just the first 10 values */
         read = 
-            sscanf(line, "%d %d %g %g %g %g %g %g %g %g",
+            sscanf(line, "%d %d %g %g %g %g %g %g %g %g %g",
                 &di,            /* No. Particles */
                 &di,
                 &df,&df,&df,    /* Position      */
                 &df,&df,&df,    /* Velocity      */
-                &mass,          /* Mass          */
-                &df             /* Radius        */
+                /* Mass          */
+                &groups[n_groups].M,
+                /* Radius        */
+                &df,
+                /* Vmax             (11)  */
+                &groups[n_groups].vMax
                 );
 
-        ERRORIF(mass <= 0, "Zero/Negative mass in group file.");
+        assert(groups[n_groups].npart == 0);
+        ERRORIF(groups[n_groups].M <= 0, "Zero/Negative mass in group file.");
 
         if (read <= 0) continue; /* check for EOF at top of loop */
 
-        if (read != 10) { ret = 3; break; }
+        if (read != 11) { ret = 3; break; }
 
-        groups[++n_groups].M = mass;
     }
 
-    groups[0].M = 0;
+    MEMSET(groups, 0, 1, group_t);
 
     if (line != NULL) free(NULL);
 
@@ -253,7 +258,7 @@ int read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
 int main(int argc, char **argv)
 {
     uint64_t i;
-    group_t *D, *P;
+    group_t *D = NULL, *P = NULL;
     uint64_t nD, nP;
 
     FILE *out = stdout;
@@ -326,7 +331,7 @@ int main(int argc, char **argv)
         //eprintf("%ld  %ld\n", D[i].id, D[i].npart);
     }
 
-    //fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
+    fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
 
     //========================================================================
     // First sort the groups by mass and then each list of progenitors.
