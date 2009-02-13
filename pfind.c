@@ -100,6 +100,34 @@ int sort_group_progenitors(group_t *D, uint64_t n_groups)
 }
 
 //============================================================================
+//                            sort_group_belonging
+//============================================================================
+int sort_group_belonging(group_t *D, uint64_t n_groups)
+{
+    uint64_t i;
+
+    for (i=0; i <= n_groups; i++)
+    {
+        group_t *cur_grp = &D[i];
+
+        //--------------------------------------------------------------------
+        // Sort id's from largest to smallest
+        //--------------------------------------------------------------------
+        int _id_cmp(const void *a0, const void *b0)
+        {
+            uint64_t a = *((uint64_t *)a0);
+            uint64_t b = *((uint64_t *)b0);
+            if (a > b) return -1;
+            if (a < b) return +1;
+            return 0;
+        }
+
+        qsort(D[i].belong.v, D[i].belong.len, sizeof(uint64_t), _id_cmp);
+    }
+    return 0;
+}
+
+//============================================================================
 //                             write_output_ascii
 //============================================================================
 int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
@@ -109,18 +137,61 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
     for (i=0; i <= n_groups; i++)
     {
         //fprintf(out, "  %12ld  ", groups[i].id);
-        fprintf(out, "  %12ld(%ld)  ", groups[i].id, groups[i].npart);
+        //fprintf(out, "  %12ld(%ld)  ", groups[i].id, groups[i].npart);
+
+        assert(groups[i].belong.len != 0);
+
+        fprintf(out, "%ld", groups[i].belong.v[0]);
+        for (j=1; j < groups[i].belong.len; j++)
+            fprintf(out, ",%ld", groups[i].belong.v[j]);
+        fprintf(out, " ",);
+
         fprintf(out, "%8ld  ", groups[i].ps.len);
         for (j=0; j < groups[i].ps.len; j++)
         {
             uint64_t pi = groups[i].index.v[j];
             //fprintf(out, "%ld ", groups[i].ps.v[pi]);
-            fprintf(out, "%ld(%f,%ld) ", groups[i].ps.v[pi], (float)groups[i].pfrac.v[pi] / groups[i].npart, groups[i].pfrac.v[pi] );
+            fprintf(out, "%ld(%f,%ld) ", 
+                groups[i].ps.v[pi], 
+                (float)groups[i].pfrac.v[pi] / groups[i].npart, 
+                groups[i].pfrac.v[pi]);
+
             //fprintf(out, "%ld(%ld) ", groups[i].ps.v[j], P[groups[i].ps.v[j]].npart);
             //fprintf(out, "%ld(%f) ", groups[i].ps[j], P_masses[groups[i].ps[j]]);
         }
         fprintf(out, "\n");
     }
+    return 0;
+}
+
+//============================================================================
+//                            add_belonging_groups
+//============================================================================
+int add_belonging_groups(char *line, group_t *D, uint64_t nD)
+{
+    uint64_t gid=0, first = 1;
+    char *ap = NULL;
+
+    while ((ap = strsep(&line, " \t\n")) != NULL)
+    {
+        if (*ap != '\0')
+        {
+            uint64_t id = atol(ap);
+            if (first)
+            {
+                first = 0;
+                gid   = id;
+            }
+            else
+            {
+               ASSERT(id != 0, "Parent id is that of a field particle (0)");
+               // Groups belonging to other will have larger id's than their parents.
+               ASSERT(id < gid, "Parent id is larger than child's: child=%ld  parent=%ld\n", id, gid);
+            }
+            set_add(&D[gid].belong, id);
+        }
+    }
+
     return 0;
 }
 
@@ -156,6 +227,8 @@ int build_prog_list(FILE *fpD, FILE *fpP,
         sscanf(line, "%ld", &gidD);
         ERRORIF(gidD > nD, "gidD %ld > number of groups (%ld)", gidD, nD);
 
+        add_belonging_groups(line, D, nD);
+
         if ((read = getline(&line, &len, fpP)) <= 0) return 1;
         sscanf(line, "%ld", &gidP);
         ERRORIF(gidP > nP, "gidP %ld > number of groups (%ld)", gidP, nP);
@@ -171,7 +244,7 @@ int build_prog_list(FILE *fpD, FILE *fpP,
         ERRORIF(list_ensure_index(&D[gidD].index, i), "No memory.");
         ERRORIF(list_ensure_index(&D[gidD].pfrac, i), "No memory.");
 
-        D[gidD].index.v[i] = i;
+        D[gidD].index.v[i] = i;     // Later we do an indirect sort using the indices
         D[gidD].pfrac.v[i]++;
 
         D[gidD].npart++;
@@ -339,6 +412,7 @@ int main(int argc, char **argv)
     //========================================================================
     qsort(D, nD+1, sizeof(group_t), D_mass_cmp);
     sort_group_progenitors(D, nD);
+    sort_group_belonging(D, nD);
 
     write_output_ascii(out, D, nD);
 

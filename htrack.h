@@ -17,6 +17,7 @@ typedef struct
     float v[3];         /* Peculiar velocity          (km/s)    */
     float vMax;         /* Maximum of rotation curve. (km/s)    */
     set_t ps;
+    set_t belong;
 } group_t;
 
 //============================================================================

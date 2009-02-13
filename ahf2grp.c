@@ -121,6 +121,11 @@ int main(int argc, char **argv)
             line++;
             gid++;
 
+            if (gid == 37)
+            {
+                fprintf(stderr, "Group 37 begins on line %i\n", line);
+            }
+
             //================================================================
             // We keep track of how many particles are actually in a given
             // group and have not sunk to lower groups. First, assume all
@@ -217,6 +222,7 @@ int main(int argc, char **argv)
             //================================================================
             int start = list[i].len-1;
             int end   = ((belong==0) * (list[i].len-1));
+
             fprintf(out, "%ld", list[i].v[start]);
             for (j=start-1; j >= end; j--)
                 fprintf(out, " %ld", list[i].v[j]);

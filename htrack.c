@@ -51,6 +51,25 @@ int accept_mass(group_t *d, group_t *p)
 }
 #endif
 
+uint64_t parse_gid_and_belonging(group_t *d, char *s)
+{
+    char *endptr;
+
+    uint64_t gid = strtol(s, &endptr, 10);
+    if (gid != 0)
+    {
+        while (*endptr != '\0')
+        {
+            s = endptr+1;
+            uint64_t id = strtol(s, &endptr, 10);
+            if (s == endptr) break;
+            set_add(&d[gid].belong, id);
+        }
+    }
+
+    return gid;
+}
+
 //============================================================================
 //                                   track
 //============================================================================
@@ -67,7 +86,8 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
     while (!feof(in))
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        uint64_t gid   = atol(strtok(line, DELIM));
+        //uint64_t gid   = atol(strtok(line, DELIM));
+        uint64_t gid   = parse_gid_and_belonging(D, strtok(line, DELIM));
         uint64_t nprog = atol(strtok(NULL, DELIM));
 
         if (gid == 0) continue;
@@ -97,7 +117,7 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
         for (j=0; j < D[gid].ps.len && !accept; j++)
         {
             p = D[gid].ps.v[j];
-            accept = 1 //set_in(&used, p) < 0
+            accept = set_in(&used, p) < 0
                   && (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt))
                   && (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
                   ;
@@ -187,7 +207,8 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)                                             \
 {                                                                                   \
     int i,t;                                                                      \
-    for (t=0; t < n_tracks; t++ )                                         \
+    fprintf(out, "%i %i\n", n_tracks, n_zs); \
+    for (t=0; t < n_tracks; t++)                                         \
     {                                                                           \
         for (i=0; i < n_zs; i++)                                                        \
             fprintf(out, _fmt, zs[i].g[tracks[t].t[i]]._prop);                            \
@@ -199,7 +220,27 @@ int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)          
 //============================================================================
 //                             write_pid_matrix
 //============================================================================
-WRITE_MATRIX(write_pid_matrix, id, "%ld ")
+int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)                                             \
+{
+    int i,t,j;
+    fprintf(out, "%i %i\n", n_tracks, n_zs);
+    for (t=0; t < n_tracks; t++)
+    {
+        for (i=0; i < n_zs; i++)
+        {
+            group_t *g = &zs[i].g[tracks[t].t[i]];
+            fprintf(out, "%ld", g->id);
+            if (g->id != 0)
+            {
+                for (j=0; j < g->belong.len; j++)
+                    fprintf(out, ",%ld", g->belong.v[j]);
+            }
+            fprintf(out, " ");
+        }
+        fprintf(out, "\n");
+    }
+    return 0;
+}
 
 //============================================================================
 //                             write_mass_matrix
