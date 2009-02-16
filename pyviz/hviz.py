@@ -160,12 +160,24 @@ def load_ahf(cursor):
     cursor.execute('SELECT min(Xc),max(Xc),min(Yc),max(Yc),min(Zc),max(Zc) FROM stat')
     row = cursor.fetchone()
     xmin,xmax, ymin,ymax, zmin,zmax = row[0],row[1], row[2],row[3], row[4],row[5]
-
     env.max_x = max(max(xmax-xmin, ymax-ymin), zmax-zmin)
+
+    cursor.execute('SELECT min(VXc),max(VXc),min(VYc),max(VYc),min(VZc),max(VZc) FROM stat')
+    row = cursor.fetchone()
+    vxmin,vxmax, vymin,vymax, vzmin,vzmax = row[0],row[1], row[2],row[3], row[4],row[5]
+    env.max_v = max(max(vxmax-vxmin, vymax-vymin), vzmax-vzmin)
+
+    if env.max_x == 0: env.max_x = 1;
+    if env.max_v == 0: env.max_v = 1;
+
+    env.max_x /= 2
+    env.max_v /= 2
 
     cx = (xmax+xmin) / 2
     cy = (ymax+ymin) / 2
     cz = (zmax+zmin) / 2
+
+    print cx, cy, cz, env.max_x
 
     o = \
     cursor.execute(('SELECT snap_id,gid,npart,nvpart,' +
@@ -176,7 +188,7 @@ def load_ahf(cursor):
                    'VYc*1e-3             AS VY,'       +
                    'VZc*1e-3             AS VZ,'       +
                    'Mvir                 AS Mass,'     +
-                   'Rvir/%(maxx)f*1e1    AS Radius,'   +
+                   'Rvir/%(maxx)f*0.001    AS Radius,'   +
                    'Vmax,'                             +
                    'Rmax/%(maxx)f*0.001  AS Rmax,'     +
                    'sigV,'                             +
@@ -226,7 +238,7 @@ def load_ahf(cursor):
             env.halos.append([[]])
 
         h = Halo(row)
-        h.a, h.b, h.c = 1,1,1
+        #h.a, h.b, h.c = 1,1,1
 
 #        exec s
 

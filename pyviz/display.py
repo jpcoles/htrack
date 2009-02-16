@@ -97,7 +97,7 @@ def viz_init():
     #glDepthMask(GL_TRUE)
     #glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)
     glEnable(GL_BLEND)
-    #glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 #if 0
 #   glEnable(GL_LIGHTING)
@@ -447,9 +447,7 @@ def draw_halo(halo, ramp, i):
 #           ]
     
 
-    glTranslatef(halo.X * 1, 
-                 halo.Y * 1, 
-                 halo.Z * 1)
+    glTranslatef(hx, hy, hz)
 
     if False:
         glBegin(GL_LINES)
@@ -499,7 +497,7 @@ def draw_halo(halo, ramp, i):
 #               else
 #endif
 
-        glColor4f(r, g, b, alpha)
+        glColor4f(r, g, b, .8)
 #        if i in [32, 414]:
 #            glColor4f(r,g,b, 1)
 
@@ -588,8 +586,8 @@ def draw_tracks():
 ##endif
 #
         r,g,b = color_ramp_tipsy(float(i) / nhalos)
-        glColor4f(r, g, b, 1)
-#        glColor4f(1, 1, 1, .1)
+        #glColor4f(r, g, b, 1)
+        glColor4f(1, 1, 1, .1)
 
         lx=0
         ly=0
