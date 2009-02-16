@@ -175,7 +175,7 @@ def load_ahf(cursor):
                    'VXc*1e-3             AS VX,'       +
                    'VYc*1e-3             AS VY,'       +
                    'VZc*1e-3             AS VZ,'       +
-                   'Mvir,                AS Mass,'     +
+                   'Mvir                 AS Mass,'     +
                    'Rvir/%(maxx)f*1e1    AS Radius,'   +
                    'Vmax,'                             +
                    'Rmax/%(maxx)f*0.001  AS Rmax,'     +
@@ -208,42 +208,88 @@ def load_ahf(cursor):
                    'FROM stat ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x})
 
     columns = map(lambda x: x[0], o.description)
-
     oldt = 0 
     env.halos.append([None])
+
+    print "Loading halos...",
     for row in cursor:
         t = row['snap_id']
         i = row['gid']
 
+        #t,i = row[0:2]
+
+        #print t,i
+
         if t != oldt:
+            print t
             oldt = t
             env.halos.append([[]])
 
-        h = Halo()
+        h = Halo(row)
+        h.a, h.b, h.c = 1,1,1
 
-        for col in columns:
-            exec "h.%s = row[col]" % col
+#        exec s
 
-        env.halos[t].append(h)
+        try:
+            env.halos[t].append(h)
+        except:
+            print len(env.halos), t
+            sys.exit(1)
+    print "Done."
 
+    print "Selecting tracks..."
     cursor.execute('SELECT id,snap_id,gid FROM tracks ORDER BY id,snap_id ASC')
+    print "Loading tracks...",
     env.mt = [None]
     oldt = 0
     for row in cursor:
         track = row['id']
-        t     = row['snap_id']
-        gid   = row['gid']
+        #t     = row['snap_id']
+        #gid   = row['gid']
 
         if track != oldt:
             oldt = track
-            env.mt.append([[]] * 2)
+            env.mt.append([[]])
             #env.mt.append([[]] * 33)
 
-        env.mt[track][t] = row
+        env.mt[track].append(row)
+    print "Done."
 
-    env.eye.x = env.eye.ox = 0
-    env.eye.y = env.eye.oy = 0
-    env.eye.z = env.eye.oz = 0
+#   oldt = 0 
+#   env.halos.append([None])
+#   for row in cursor:
+#       t = row['snap_id']
+#       i = row['gid']
+
+#       if t != oldt:
+#           oldt = t
+#           env.halos.append([[]])
+
+#       h = Halo()
+
+#       for col in columns:
+#           exec "h.%s = row[col]" % col
+
+#       env.halos[t].append(h)
+
+#   cursor.execute('SELECT id,snap_id,gid FROM tracks ORDER BY id,snap_id ASC')
+#   env.mt = [None]
+#   oldt = 0
+#   for row in cursor:
+#       track = row['id']
+#       t     = row['snap_id']
+#       gid   = row['gid']
+
+#       if track != oldt:
+#           oldt = track
+#           env.mt.append([[]] * 2)
+#           #env.mt.append([[]] * 33)
+
+#       env.mt[track][t] = row
+
+#   env.eye.x = env.eye.ox = 0
+#   env.eye.y = env.eye.oy = 0
+#   env.eye.z = env.eye.oz = 0
 
     return 0
 
@@ -276,6 +322,7 @@ if __name__ == '__main__':
     env.eye.ux = 0
     env.eye.uy = 1
     env.eye.uz = 0
+
     env.make_movie = 0
     env.movie_prefix = None
     env.frame_buffer = None
