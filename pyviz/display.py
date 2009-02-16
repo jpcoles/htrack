@@ -628,9 +628,9 @@ def onUpdate():
         ii = env.mt[env.track_id][env.t]
         if ii and ii['gid']:
             ii = ii['gid']
-            Tx = env.halos[env.t][ ii ].Xc - Ex
-            Ty = env.halos[env.t][ ii ].Yc - Ey
-            Tz = env.halos[env.t][ ii ].Zc - Ez
+            Tx = env.halos[env.t][ ii ].X - Ex
+            Ty = env.halos[env.t][ ii ].Y - Ey
+            Tz = env.halos[env.t][ ii ].Z - Ez
 
             r = sqrt(Tx**2 + Ty**2 + Tz**2)
 
