@@ -342,7 +342,8 @@ if __name__ == '__main__':
     env.mode = MODE_TRACK | MODE_HALOBODIES
     #env.mode = MODE_HALOBODIES
     env.track_id = 1
-    env.pointto_id = [9961,350433]
+    env.pointto_id = []
+    #env.pointto_id = [9961,350433]
     #env.track_id = 414
     env.mouse_down = 0
     env.dirty = 1

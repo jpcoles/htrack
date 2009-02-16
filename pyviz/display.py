@@ -133,8 +133,8 @@ def viz_init():
     display_list = glGenLists(1)
 
     start = glGenLists(3)
-    for i,r in [[0,4], [1,8], [2,16]]:
-    #for i,r in [[0,8], [1,16], [2,32]]:
+    #for i,r in [[0,4], [1,8], [2,16]]:
+    for i,r in [[0,8], [1,16], [2,32]]:
         sphere.append(start + i)
         glNewList(sphere[i], GL_COMPILE)
         glutWireSphere(1., r, r)
@@ -490,6 +490,9 @@ def draw_halo(halo, ramp, i):
         #color_ramp_astro(&r, &g, &b)
         #color_ramp_tipsy((float)(i+1) / 10., &r, &g, &b)
         #r,g,b = color_ramp_tipsy(float(i) / nhalos)
+#       if halo.gid == env.track_id:
+#           r,g,b = 1,0,0
+#       else:
         r,g,b = color_ramp_tipsy(ramp)
 #if 0
 #               if (t == env.t)
@@ -708,9 +711,9 @@ def onUpdate():
     else:
         glCallList(display_list)
 
-    if env.track_id or env.pointto_id:
+    if env.pointto_id:
         for halo in env.halos[env.t][1:]:
-            if halo.gid == env.track_id or halo.gid in env.pointto_id:
+            if halo.gid in env.pointto_id:
                 glColor4f(1,1,1,.5)
                 glBegin(GL_LINES)
                 glVertex3f(Ex-Ux, Ey-Uy, Ez-Uz)
