@@ -28,6 +28,7 @@ CFLAGS  		+=	-Wall -g
 CFLAGS  		+=	-O0
 
 CFLAGS 			+=	-Ijpeg-6b 
+CFLAGS 			+=	-I../
 
 ifeq ($(PLATFORM), Darwin)
 LDFLAGS 		+= 	-framework OpenGL -framework GLUT -framework ApplicationServices
@@ -42,7 +43,7 @@ CXXFLAGS		+=	$(CFLAGS)
 
 
 hviz: $(OBJS) $(HDRS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(OBJS) jpeg-6b/libjpeg.a -o hviz $(LIBS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) ../set.o $(OBJS) jpeg-6b/libjpeg.a -o hviz $(LIBS)
 
 all: hviz 
 
@@ -56,7 +57,7 @@ testgl: testgl.o
 	$(NVCC) $(CUFLAGS) -c $^ -o $@
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $^ -o $@
+	$(CXX) $(CXXFLAGS) -c $^ -o $@ 
 
 $(SVR_OBJS): %.o: %.c
 	$(CC) -DSERVER $(CFLAGS) -c $< -o $@

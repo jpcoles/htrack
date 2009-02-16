@@ -19,8 +19,8 @@
 #define WITH_POINTS 0
 
 //#define FAC .025
-#define FAC .001
-#define ANG 0.6
+#define FAC .01
+#define ANG 10
 //#define ANG 1.3
 
 #define Ex env.eye.x
@@ -167,9 +167,9 @@ void toggleSpinning()
     env.spinning = !env.spinning;
 }
 
-void pitch(int dir)
+void pitch(int ang)
 {
-    const float t = ANG * M_PI/180. * dir;
+    const float t = ang * M_PI/180.;
 
     float Ix = (Uy * Tz  -  Uz * Ty);
     float Iy = (Uz * Tx  -  Ux * Tz);
@@ -204,9 +204,9 @@ void pitch(int dir)
     Tz /= r;
 }
 
-void roll(int dir)
+void roll(int ang)
 {
-    const float t = ANG * M_PI/180. * -dir;
+    const float t = -ang * M_PI/180.;
     
     float ax, ay, az;
 
@@ -229,9 +229,9 @@ void roll(int dir)
     Uz = az/r;
 }
 
-void yaw(int dir)
+void yaw(int ang)
 {
-    const float t = ANG * M_PI/180. * dir;
+    const float t = ang * M_PI/180.;
     
     float ax, ay, az;
 
@@ -254,9 +254,9 @@ void yaw(int dir)
     Tz = az/r;
 }
 
-void strafe(int dir)
+void strafe(float dist)
 {
-    const float dist = FAC * -dir;
+    dist *= -1;
 
     float i = (Uy * Tz  -  Uz * Ty);
     float j = (Uz * Tx  -  Ux * Tz);
@@ -268,18 +268,18 @@ void strafe(int dir)
     Ez += (k/r) * dist;
 }
 
-void walk(int dir)
+void walk(float dist)
 {
-    const float dist = FAC * -dir;
+    dist *= -1;
 
     Ex += Tx * dist;
     Ey += Ty * dist;
     Ez += Tz * dist;
 }
 
-void fly(int dir)
+void fly(float dist)
 {
-    const float dist = FAC * -dir;
+    dist *= -1;
 
     Ex += Ux * dist;
     Ey += Uy * dist;
@@ -294,8 +294,8 @@ void on2DDrag(int x0, int y0)
     int x = x0 - oldx;
     int y = y0 - oldy;
 
-    if (oldx != -10000 && x) yaw((x > 0) * 2 - 1);
-    if (oldy != -10000 && y) pitch((y < 0) * 2 - 1);
+    //if (oldx != -10000 && x) yaw((x > 0) * 2 - 1);
+    //if (oldy != -10000 && y) pitch((y < 0) * 2 - 1);
 
     oldx = x0;
     oldy = y0;
@@ -310,9 +310,15 @@ void on3DDrag(int x0, int y0, int z0)
     float x, y, z;
     float r;
 
+#if 0
     if (x0) strafe((x0 > 0) * 2 - 1);
     if (y0)   walk((y0 > 0) * 2 - 1);
     if (z0)    fly((z0 > 0) * 2 - 1);
+#else
+    if (x0) strafe(x0/1000. * FAC);
+    if (y0)   walk(y0/1000. * FAC);
+    if (z0)    fly(z0/1000. * FAC);
+#endif
 
 #if 0
     x1 =  x0 / 1000.0;
@@ -364,9 +370,15 @@ void on3DDrag(int x0, int y0, int z0)
 
 void on3DRotate(int rx0, int ry0, int rz0)
 {
+#if 0
     if (rx0) pitch((rx0 > 0) * 2 - 1);
     if (ry0)   yaw((ry0 < 0) * 2 - 1);
     if (rz0)  roll((rz0 > 0) * 2 - 1);
+#else
+    if (rx0) pitch(rx0/1000. * ANG);
+    if (ry0)   yaw(ry0/1000. * ANG);
+    if (rz0)  roll(rz0/1000. * ANG);
+#endif
 
     glutPostRedisplay();
 }
@@ -409,7 +421,7 @@ void onClick(int button, int state, int x, int y)
     int i;
     for (i=0; i < env.mt.n_halos; i++)
     {
-        int ii = env.mt.h[i][env.t];
+        int ii = env.mt.h[i][env.t].v[0];
 
         if (ii == 0) continue;
 
@@ -467,11 +479,11 @@ void onKeyboard(unsigned char key, int x, int y)
             break;
 
         case 'w': case 'W':
-            pitch(1);
+            pitch(ANG);
             break;
 
         case 's': case 'S':
-            pitch(-1);
+            pitch(-ANG);
             break;
 
 
@@ -482,6 +494,19 @@ void onKeyboard(unsigned char key, int x, int y)
 
         case 'b': case 'B':
             env.mode ^= MODE_HALOBODIES;
+            env.dirty = 1;
+            break;
+
+        case '<':
+            env.level++;
+            if (env.level > env.max_level) env.level = env.max_level;
+            fprintf(stderr, "level=%i\n", env.level);
+            env.dirty = 1;
+            break;
+        case '>':
+            env.level--;
+            if (env.level < 0) env.level = 0;
+            fprintf(stderr, "level=%i\n", env.level);
             env.dirty = 1;
             break;
 
@@ -496,10 +521,10 @@ void onKeyboardSpecial(int key, int x, int y)
 {
     switch (key)
     {
-        case GLUT_KEY_RIGHT: strafe(1);  break;
-        case GLUT_KEY_LEFT:  strafe(-1); break;
-        case GLUT_KEY_UP:    walk(-1);   break;
-        case GLUT_KEY_DOWN:  walk(1);    break;
+        case GLUT_KEY_RIGHT: strafe(FAC);  break;
+        case GLUT_KEY_LEFT:  strafe(-FAC); break;
+        case GLUT_KEY_UP:    walk(-FAC);   break;
+        case GLUT_KEY_DOWN:  walk(FAC);    break;
         default:
             break;
     }
@@ -533,7 +558,7 @@ void draw_halos()
     unsigned int i, j, t;
     uint64_t active = 0;
     for (i=0; i < env.mt.n_halos; i++)
-        if (env.mt.h[i][env.t] != 0) active++;
+        if (env.mt.h[i][env.t].v[0] != 0) active++;
 
     uint64_t n=0;
     for (i=0; i < env.mt.n_halos; i++)
@@ -547,7 +572,15 @@ void draw_halos()
             //if (!(i == 0)
             //&& t != env.t) continue;
 
-            int ii = env.mt.h[i][t];
+            //int ii = env.mt.h[i][t].v[0];
+
+            int ii;
+
+            if (env.level >= env.mt.h[i][t].len-1)
+                ii = env.mt.h[i][t].v[0];
+            else
+                continue;
+                //ii = env.mt.h[i][t].v[ env.mt.h[i][t].len-1 - env.level ];
 
             if (ii == 0) continue;
 
@@ -701,20 +734,20 @@ void draw_tracks()
 #if 1
             if (1
 //              i != 1 
-//          &&  i != 2
+            &&  i != 2
 //          &&  i != 3
 //          &&  i != 4
 //          &&  i != 5
             &&  i != 31
             &&  i != 413
-            &&  i >= 64
+//          &&  i >= 64
 //          &&  i != 1738
             ) continue;
 #endif
 
         color_ramp_tipsy((float)i / env.mt.n_halos, &r, &g, &b);
         glColor4f(r, g, b, 1);
-        //glColor4f(1, 1, 1, 1);
+        //glColor4f(1, 1, 1, .1);
 
         float lx=0, ly=0, lz=0;
 
@@ -728,7 +761,7 @@ void draw_tracks()
             //glColor4f(0, 1, 1, 1.0);
             //if (i == 31)
                 //glColor4f(0, 1, 0, 1.0);
-            int ii = env.mt.h[i][t];
+            int ii = env.mt.h[i][t].v[0];
 
             if (ii == 0) continue;
 
@@ -768,7 +801,7 @@ void onUpdate()
 #if 1
     if (env.mode & MODE_TRACK)
     {
-        int ii = env.mt.h[env.track_id][env.t];
+        int ii = env.mt.h[env.track_id][env.t].v[0];
         if (ii != 0)
         {
             float i, j, k;

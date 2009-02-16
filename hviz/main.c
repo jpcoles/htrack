@@ -36,7 +36,6 @@ int load_halo_files(FILE *in)
         {
             char *p = (char *)memchr(line, '\n', len);
             if (p) *p = '\0';
-            fprintf(stderr, "ASDFAS %s\n", line);
             hin = fopen(line, "r"); assert(hin != NULL);
             ret = read_merger_tree(hin, &env.mt);
             fclose(hin);
@@ -50,14 +49,16 @@ int load_halo_files(FILE *in)
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
 
-        char *p = (char *)memchr(line, '\n', len);
-        if (p) *p = '\0';
-        hin = fopen(line, "r"); assert(hin != NULL);
         GROW_ARRAY(env.hl, halo_list_t, env.t_max, allocd, 2, 32);
         env.hl[env.t_max].n_halos = 0;
         env.hl[env.t_max].halo    = NULL;
+
+        char *p = (char *)memchr(line, '\n', len);
+        if (p) *p = '\0';
+        hin = fopen(line, "r"); assert(hin != NULL);
         ret = read_ahf_halos(hin, &env.hl[env.t_max].halo, &env.hl[env.t_max].n_halos);
         fclose(hin);
+
         env.t_max++;
     }
 
@@ -78,28 +79,28 @@ int load_halo_files(FILE *in)
     float vzmin=1e10,vzmax=-1e10;
     float mmax=-1e10;
 
-    int i,j;
-    for (i=0; i < env.t_max; i++)
+    int t,i;
+    for (t=0; t < env.t_max; t++)
     {
-        for (j=1; j <= env.hl[i].n_halos; j++)
+        for (i=1; i <= env.hl[t].n_halos; i++)
         {
-            xmax = fmax(xmax, env.hl[i].halo[j].Xc);
-            ymax = fmax(ymax, env.hl[i].halo[j].Yc);
-            zmax = fmax(zmax, env.hl[i].halo[j].Zc);
+            xmax = fmax(xmax, env.hl[t].halo[i].Xc);
+            ymax = fmax(ymax, env.hl[t].halo[i].Yc);
+            zmax = fmax(zmax, env.hl[t].halo[i].Zc);
 
-            xmin = fmin(xmin, env.hl[i].halo[j].Xc);
-            ymin = fmin(ymin, env.hl[i].halo[j].Yc);
-            zmin = fmin(zmin, env.hl[i].halo[j].Zc);
+            xmin = fmin(xmin, env.hl[t].halo[i].Xc);
+            ymin = fmin(ymin, env.hl[t].halo[i].Yc);
+            zmin = fmin(zmin, env.hl[t].halo[i].Zc);
 
-            vxmax = fmax(vxmax, env.hl[i].halo[j].VXc);
-            vymax = fmax(vymax, env.hl[i].halo[j].VYc);
-            vzmax = fmax(vzmax, env.hl[i].halo[j].VZc);
+            vxmax = fmax(vxmax, env.hl[t].halo[i].VXc);
+            vymax = fmax(vymax, env.hl[t].halo[i].VYc);
+            vzmax = fmax(vzmax, env.hl[t].halo[i].VZc);
 
-            vxmin = fmin(vxmin, env.hl[i].halo[j].VXc);
-            vymin = fmin(vymin, env.hl[i].halo[j].VYc);
-            vzmin = fmin(vzmin, env.hl[i].halo[j].VZc);
+            vxmin = fmin(vxmin, env.hl[t].halo[i].VXc);
+            vymin = fmin(vymin, env.hl[t].halo[i].VYc);
+            vzmin = fmin(vzmin, env.hl[t].halo[i].VZc);
 
-            mmax = fmax(mmax, env.hl[i].halo[j].Mvir);
+            mmax = fmax(mmax, env.hl[t].halo[i].Mvir);
         }
     }
 
@@ -118,51 +119,48 @@ int load_halo_files(FILE *in)
     fprintf(stderr, "max_v = %f\n", env.max_v);
     fprintf(stderr, "max_m = %e\n", env.max_m);
 
-    for (i=0; i < env.t_max; i++)
+    for (t=0; t < env.t_max; t++)
     {
-        for (j=1; j <= env.hl[i].n_halos; j++)
+        for (i=1; i <= env.hl[t].n_halos; i++)
         {
-            env.hl[i].halo[j].w.Xc = (env.hl[i].halo[j].Xc - cx) / env.max_x;
-            env.hl[i].halo[j].w.Yc = (env.hl[i].halo[j].Yc - cy) / env.max_x;
-            env.hl[i].halo[j].w.Zc = (env.hl[i].halo[j].Zc - cz) / env.max_x;
+            env.hl[t].halo[i].w.Xc         = (env.hl[t].halo[i].Xc - cx) / env.max_x;
+            env.hl[t].halo[i].w.Yc         = (env.hl[t].halo[i].Yc - cy) / env.max_x;
+            env.hl[t].halo[i].w.Zc         = (env.hl[t].halo[i].Zc - cz) / env.max_x;
 
-            env.hl[i].halo[j].w.Rvir = env.hl[i].halo[j].Rvir / env.max_x;
-            env.hl[i].halo[j].w.Mvir = env.hl[i].halo[j].Mvir / env.max_m;
+            env.hl[t].halo[i].w.VXc        = env.hl[t].halo[i].VXc;
+            env.hl[t].halo[i].w.VYc        = env.hl[t].halo[i].VYc;
+            env.hl[t].halo[i].w.VZc        = env.hl[t].halo[i].VZc;
 
-            env.hl[i].halo[j].w.Xc = (env.hl[i].halo[j].Xc - cx) / env.max_x;
-            env.hl[i].halo[j].w.Yc = (env.hl[i].halo[j].Yc - cy) / env.max_x;
-            env.hl[i].halo[j].w.Zc = (env.hl[i].halo[j].Zc - cz) / env.max_x;
-
-            env.hl[i].halo[j].w.Mvir       = env.hl[i].halo[j].Mvir;
-            env.hl[i].halo[j].w.Rvir       = env.hl[i].halo[j].Rvir / env.max_x * 0.001;
-            env.hl[i].halo[j].w.Vmax       = env.hl[i].halo[j].Vmax;
-            env.hl[i].halo[j].w.Rmax       = env.hl[i].halo[j].Rmax / env.max_x * 0.001;
-            env.hl[i].halo[j].w.sigV       = env.hl[i].halo[j].sigV;
-            env.hl[i].halo[j].w.lambda     = env.hl[i].halo[j].lambda;
-            env.hl[i].halo[j].w.Lx         = env.hl[i].halo[j].Lx;
-            env.hl[i].halo[j].w.Ly         = env.hl[i].halo[j].Ly;
-            env.hl[i].halo[j].w.Lz         = env.hl[i].halo[j].Lz;
-            env.hl[i].halo[j].w.a          = env.hl[i].halo[j].a;
-            env.hl[i].halo[j].w.Eax        = env.hl[i].halo[j].Eax;
-            env.hl[i].halo[j].w.Eay        = env.hl[i].halo[j].Eay;
-            env.hl[i].halo[j].w.Eaz        = env.hl[i].halo[j].Eaz;
-            env.hl[i].halo[j].w.b          = env.hl[i].halo[j].b;
-            env.hl[i].halo[j].w.Ebx        = env.hl[i].halo[j].Ebx;
-            env.hl[i].halo[j].w.Eby        = env.hl[i].halo[j].Eby;
-            env.hl[i].halo[j].w.Ebz        = env.hl[i].halo[j].Ebz;
-            env.hl[i].halo[j].w.c          = env.hl[i].halo[j].c;
-            env.hl[i].halo[j].w.Ecx        = env.hl[i].halo[j].Ecx;
-            env.hl[i].halo[j].w.Ecy        = env.hl[i].halo[j].Ecy;
-            env.hl[i].halo[j].w.Ecz        = env.hl[i].halo[j].Ecz;
-            env.hl[i].halo[j].w.ovdens     = env.hl[i].halo[j].ovdens;
-            env.hl[i].halo[j].w.Redge      = env.hl[i].halo[j].Redge;
-            env.hl[i].halo[j].w.nbins      = env.hl[i].halo[j].nbins;
-            env.hl[i].halo[j].w.Ekin       = env.hl[i].halo[j].Ekin;
-            env.hl[i].halo[j].w.Epot       = env.hl[i].halo[j].Epot;
-            env.hl[i].halo[j].w.mbp_offset = env.hl[i].halo[j].mbp_offset;
-            env.hl[i].halo[j].w.com_offset = env.hl[i].halo[j].com_offset;
-            env.hl[i].halo[j].w.r2         = env.hl[i].halo[j].r2;
-            env.hl[i].halo[j].w.lambdaE    = env.hl[i].halo[j].lambdaE;
+            env.hl[t].halo[i].w.Mvir       = env.hl[t].halo[i].Mvir;
+            env.hl[t].halo[i].w.Rvir       = env.hl[t].halo[i].Rvir / env.max_x * 0.001;
+            env.hl[t].halo[i].w.Vmax       = env.hl[t].halo[i].Vmax;
+            env.hl[t].halo[i].w.Rmax       = env.hl[t].halo[i].Rmax / env.max_x * 0.001;
+            env.hl[t].halo[i].w.sigV       = env.hl[t].halo[i].sigV;
+            env.hl[t].halo[i].w.lambda     = env.hl[t].halo[i].lambda;
+            env.hl[t].halo[i].w.Lx         = env.hl[t].halo[i].Lx;
+            env.hl[t].halo[i].w.Ly         = env.hl[t].halo[i].Ly;
+            env.hl[t].halo[i].w.Lz         = env.hl[t].halo[i].Lz;
+            env.hl[t].halo[i].w.a          = env.hl[t].halo[i].a;
+            env.hl[t].halo[i].w.Eax        = env.hl[t].halo[i].Eax;
+            env.hl[t].halo[i].w.Eay        = env.hl[t].halo[i].Eay;
+            env.hl[t].halo[i].w.Eaz        = env.hl[t].halo[i].Eaz;
+            env.hl[t].halo[i].w.b          = env.hl[t].halo[i].b;
+            env.hl[t].halo[i].w.Ebx        = env.hl[t].halo[i].Ebx;
+            env.hl[t].halo[i].w.Eby        = env.hl[t].halo[i].Eby;
+            env.hl[t].halo[i].w.Ebz        = env.hl[t].halo[i].Ebz;
+            env.hl[t].halo[i].w.c          = env.hl[t].halo[i].c;
+            env.hl[t].halo[i].w.Ecx        = env.hl[t].halo[i].Ecx;
+            env.hl[t].halo[i].w.Ecy        = env.hl[t].halo[i].Ecy;
+            env.hl[t].halo[i].w.Ecz        = env.hl[t].halo[i].Ecz;
+            env.hl[t].halo[i].w.ovdens     = env.hl[t].halo[i].ovdens;
+            env.hl[t].halo[i].w.Redge      = env.hl[t].halo[i].Redge;
+            env.hl[t].halo[i].w.nbins      = env.hl[t].halo[i].nbins;
+            env.hl[t].halo[i].w.Ekin       = env.hl[t].halo[i].Ekin;
+            env.hl[t].halo[i].w.Epot       = env.hl[t].halo[i].Epot;
+            env.hl[t].halo[i].w.mbp_offset = env.hl[t].halo[i].mbp_offset;
+            env.hl[t].halo[i].w.com_offset = env.hl[t].halo[i].com_offset;
+            env.hl[t].halo[i].w.r2         = env.hl[t].halo[i].r2;
+            env.hl[t].halo[i].w.lambdaE    = env.hl[t].halo[i].lambdaE;
 
         }
     }
@@ -225,6 +223,8 @@ int main(int argc, char **argv)
     env.track_id = 413;
     env.mouse_down = 0;
     env.dirty = 1;
+    env.max_level = 0;
+    env.level = 0;
 
     //if (argc < 2) help();
 
@@ -287,6 +287,8 @@ int main(int argc, char **argv)
 
     load_halo_files(in);
     if (in != stdin) fclose(in);
+
+    env.level = env.max_level;
 
 #if defined(HAVE_GPU) && defined(HAVE_NVIDIA_GPU)
     nvidia_init();

@@ -13,9 +13,11 @@
 extern "C" {
 #endif
 #include "jpeglib.h"
+#include "set.h"
 #ifdef __cplusplus
 }
 #endif
+
 
 
 #define MODE_NONE               0x00
@@ -24,6 +26,7 @@ extern "C" {
 #define MODE_HALOBODIES         0x04
 
 #define MALLOC(type, n) (type *)malloc((n) * sizeof(type))
+#define CALLOC(type, n) (type *)calloc((n), sizeof(type))
 #define REALLOC(ptr, type, n) (type *)realloc((ptr), (n) * sizeof(type))
 #define MEMSET(ptr, val, n, type) memset((ptr), (val), (n) * sizeof(type))
 
@@ -127,7 +130,7 @@ typedef struct
 typedef struct
 {
     uint64_t n_halos, n_zs;
-    uint64_t **h;
+    set_t **h;
 } merger_tree_t;
 
 typedef struct
@@ -166,6 +169,8 @@ typedef struct
     int dirty;
 
     int selected_halo;
+
+    int max_level, level;
 
 } Environment;
 

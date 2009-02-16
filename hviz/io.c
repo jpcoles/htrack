@@ -194,7 +194,7 @@ int read_ahf_halos(FILE *in, halo_t **halos0, uint64_t *n_halos0)
 //============================================================================
 int read_merger_tree(FILE *in, merger_tree_t *mt)
 {
-    int i, j, ret = 0;
+    int i,j,k, ret = 0;
     char *line = NULL;
     size_t len = 0;
 
@@ -205,22 +205,41 @@ int read_merger_tree(FILE *in, merger_tree_t *mt)
         break;
     }
 
-    mt->h = MALLOC(uint64_t *, mt->n_halos);
+    mt->h = MALLOC(set_t *, mt->n_halos);
     for (i=0; i < mt->n_halos; i++)
-        mt->h[i] = MALLOC(uint64_t, mt->n_zs);
+        mt->h[i] = CALLOC(set_t, mt->n_zs);
 
     i=0;
     while (!ret && !feof(in))
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
 
-        char *ap;
+        char *ap, *ap2;
         char *lineptr = line;
         for (j=0; (ap = strsep(&lineptr, " \t\n")) != NULL; )
         {
             if (*ap != '\0')
-                mt->h[i][mt->n_zs - ++j] = atol(ap);
+            {
+                j++;
+                set_t *s = &mt->h[i][mt->n_zs - j];
+
+
+                for (k=0; (ap2 = strsep(&ap, ",")) != NULL; )
+                {
+                    if (*ap2 != '\0')
+                    {
+                        fprintf(stdout, "%s,", ap2);
+                        set_add(s, atol(ap2));
+
+                        if (s->len-1 > env.max_level)
+                            env.max_level = s->len-1;
+                    }
+                }
+                fprintf(stdout, " ");
+
+            }
         }
+                fprintf(stdout, "\n");
 
         assert(mt->n_zs == j);
         i++;
