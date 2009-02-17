@@ -22,7 +22,7 @@ int verbosity = 0;
 int  read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0);
 int  accept_phase_space(group_t *d, group_t *p, float dt);
 int  accept_mass(group_t *d, group_t *p);
-int  track(FILE *in, group_t *D, group_t *P, float dt);
+int  track(FILE *in, group_t *D, group_t *P);
 void help();
 
 //============================================================================
@@ -73,7 +73,7 @@ uint64_t parse_gid_and_belonging(group_t *d, char *s)
 //============================================================================
 //                                   track
 //============================================================================
-int track(FILE *in, group_t *D, group_t *P, float dt)
+int track(FILE *in, group_t *D, group_t *P)
 {
     int i,j;
     char *line = NULL;
@@ -117,10 +117,12 @@ int track(FILE *in, group_t *D, group_t *P, float dt)
         for (j=0; j < D[gid].ps.len && !accept; j++)
         {
             p = D[gid].ps.v[j];
-            accept = set_in(&used, p) < 0
+            accept = set_in(&used, p) < 0;
+#if 0
                   && (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt))
                   && (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
                   ;
+#endif
             if (accept) break;
         }
 
@@ -550,14 +552,14 @@ int main(int argc, char **argv)
         cosmo_t c;
         cosmo_init1(&c, h); 
 
-        float dt = (cosmo_physical_time(&c, zD) - cosmo_physical_time(&c, zP)) * SECONDS_PER_GYR;
+        //float dt = (cosmo_physical_time(&c, zD) - cosmo_physical_time(&c, zP)) * SECONDS_PER_GYR;
 
         assert(pf_fp != NULL);
 
         eprintf("__________________________________________________________________________\n");
         eprintf("  %f\n", zD);
 
-        track(pf_fp, D, P, dt);
+        track(pf_fp, D, P);
         zs[n_zs].n_groups = nD;
         zs[n_zs].g = D;
         zs[n_zs].used = CALLOC(int, nD+1);

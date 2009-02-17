@@ -16,6 +16,10 @@ float *P_masses = NULL;
 float *D_masses = NULL;
 
 
+#define FMT_SKID    1
+#define FMT_AHF     2
+
+
 //============================================================================
 //                                    help
 //============================================================================
@@ -108,8 +112,6 @@ int sort_group_belonging(group_t *D, uint64_t n_groups)
 
     for (i=0; i <= n_groups; i++)
     {
-        group_t *cur_grp = &D[i];
-
         //--------------------------------------------------------------------
         // Sort id's from largest to smallest
         //--------------------------------------------------------------------
@@ -144,7 +146,7 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
         fprintf(out, "%ld", groups[i].belong.v[0]);
         for (j=1; j < groups[i].belong.len; j++)
             fprintf(out, ",%ld", groups[i].belong.v[j]);
-        fprintf(out, " ",);
+        fprintf(out, " ");
 
         fprintf(out, "%8ld  ", groups[i].ps.len);
         for (j=0; j < groups[i].ps.len; j++)
@@ -326,6 +328,49 @@ int read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
 }
 
 //============================================================================
+//                          read_skid_groups_masses
+//============================================================================
+int read_skid_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0)
+{
+    int ret=0;
+
+    char *line = NULL;
+    size_t len;
+
+    VL(1) printf("Reading SKID format group file.\n");
+
+    uint64_t n_groups=0;
+    uint64_t allocd = 0;
+    group_t *groups = NULL;
+
+    while (!ret && !feof(in))
+    {
+        /* Read the whole line */
+        if (getline(&line, &len, in) <= 0) continue;
+        ERRORIF(line[0] == '#', "Format does not support comments.");
+
+        if (n_groups == allocd)
+        {
+            if (allocd == 0) allocd = 32; else allocd *= 2;
+            groups = REALLOC(groups, group_t, allocd+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + n_groups+1, 0, allocd-n_groups, group_t);
+        }
+
+        n_groups++;
+    }
+
+    MEMSET(groups, 0, 1, group_t);
+
+    if (line != NULL) free(NULL);
+
+    *groups0   = groups;
+    *n_groups0 = n_groups;
+
+    return ret;
+}
+
+//============================================================================
 //                                    main
 //============================================================================
 int main(int argc, char **argv)
@@ -337,6 +382,8 @@ int main(int argc, char **argv)
     FILE *out = stdout;
     char *outname = NULL;
 
+    int format = FMT_AHF;
+
     if (argc < 4) help();
 
     while (1)
@@ -345,6 +392,8 @@ int main(int argc, char **argv)
         int option_index = 0;
         static struct option long_options[] = {
            {"help", no_argument,       0, 'h'},
+           {"skid", no_argument,       0, 0},
+           {"ahf",  no_argument,       0, 0},
            {0, 0, 0, 0}
         };
 
@@ -354,6 +403,13 @@ int main(int argc, char **argv)
 
         switch (c) 
         {
+            case 0:
+                if (!strcmp("skid", long_options[option_index].name))
+                    format = FMT_SKID;
+                else if (!strcmp("ahf", long_options[option_index].name))
+                    format = FMT_AHF;
+
+                break;
             case 'h':
                 help();
                 break;
@@ -388,15 +444,25 @@ int main(int argc, char **argv)
     optind++;
 
 
-    read_ahf_groups_masses(fpGrpD, &D, &nD);
-    read_ahf_groups_masses(fpGrpP, &P, &nP);
+    switch (format)
+    {
+        case FMT_SKID:
+            read_skid_groups_masses(fpGrpD, &D, &nD);
+            read_skid_groups_masses(fpGrpP, &P, &nP);
+            break;
+        case FMT_AHF:
+            read_ahf_groups_masses(fpGrpD, &D, &nD);
+            read_ahf_groups_masses(fpGrpP, &P, &nP);
+            break;
+    }
+
+    fclose(fpGrpD);
+    fclose(fpGrpP);
 
     ERRORIF(build_prog_list(fpD, fpP, D, nD, P, nP), "Unable to read group files.");
 
     fclose(fpD);
     fclose(fpP);
-    fclose(fpGrpD);
-    fclose(fpGrpP);
 
     for (i=0; i <= nD; i++)
     {
