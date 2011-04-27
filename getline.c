@@ -21,7 +21,7 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream)
         if (offs == *n)
         {
             if (*n == 0) *n = 32; else *n *= 2;
-            *lineptr = realloc(*lineptr, *n);
+            *lineptr = realloc(*lineptr, *n + 1); // +1 for the NULL terminator
             if (*lineptr == NULL) return -1;
         }
 
@@ -31,7 +31,10 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream)
         offs++;
 
         if (c == '\n')
+        {
+            (*lineptr)[offs] = '\0';
             return offs;
+        }
     }
 
     return -1;
