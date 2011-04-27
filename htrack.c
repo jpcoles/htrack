@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <getopt.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -9,6 +8,7 @@
 #include "htrack.h"
 #include "jpcmacros.h"
 #include "cosmo.h"
+#include "getline.h"
 
 #define SECONDS_PER_GYR         (3.1536e16)
 

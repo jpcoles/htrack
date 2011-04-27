@@ -564,6 +564,9 @@ def draw_halos_old():
 def draw_halos():
     Ex,Ey,Ez,Ux,Uy,Uz,Tx,Ty,Tz = eye()
 
+    draw_halos_old()
+    return
+
     nhalos = len(env.halos[env.t])-1
     for i,halo in enumerate(env.halos[env.t][1:]):
         glPushMatrix()

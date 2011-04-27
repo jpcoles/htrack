@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS stat (
     snap_id     INTEGER,
     gid         INTEGER,
     npart       INTEGER,
-    nvpart      INTEGER,
+    nvpart      REAL,
     Xc          REAL,
     Yc          REAL,
     Zc          REAL,
