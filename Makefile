@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -g -O3 -I$(HOME)/tools
+CFLAGS=-Wall -g -O3 -I$(HOME)/tools #-fnested-functions
 LDFLAGS=-lm
 
 all: htrack pfind ahf2grp 
