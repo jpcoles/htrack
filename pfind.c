@@ -58,6 +58,7 @@ char *tag = "pfind";
 
 #define FMT_6DFOF    1
 #define FMT_AHF     2
+#define FMT_SKID    3
 
 
 //============================================================================
@@ -66,7 +67,16 @@ char *tag = "pfind";
 void help()
 {
     fprintf(stderr, PROGRAM_ID "\n");
-    fprintf(stderr, "Usage: pfind <D> <statD> <groupP> <statP>\n");
+    fprintf(stderr, 
+    
+    "Usage: pfind <D> <DSTAT> <P> <PSTAT>\n"
+    "Find the progenitors of halos.\n"
+    "\n"
+    "<D> contains a list of halo ids for each particle\n"
+    "\n"
+    "\n"
+    
+    );
     exit(2);
 }
 
@@ -522,6 +532,50 @@ int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 }
 
 //============================================================================
+//                          read_skid_groups_masses
+//============================================================================
+int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
+{
+    int ret=0;
+
+    char *line = NULL;
+    size_t len;
+
+    VL(1) printf("Reading SKID format group file.\n");
+
+    uint64_t n_groups=0;
+    uint64_t allocd = 0;
+    group_t *groups = NULL;
+
+    while (!ret && !feof(in))
+    {
+        /* Read the whole line */
+        if (getline(&line, &len, in) <= 0) continue;
+        ERRORIF(line[0] == '#', "Format does not support comments.");
+
+        if (n_groups == allocd)
+        {
+            if (allocd == 0) allocd = 32; else allocd *= 2;
+            groups = REALLOC(groups, group_t, allocd+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + n_groups+1, 0, allocd-n_groups, group_t);
+        }
+
+        n_groups++;
+    }
+
+    MEMSET(groups, 0, 1, group_t);
+
+    if (line != NULL) free(NULL);
+
+    *groups0   = groups;
+    *n_groups0 = n_groups;
+
+    return ret;
+}
+
+
+//============================================================================
 //                                    main
 //============================================================================
 int main(int argc, char **argv)
@@ -552,6 +606,7 @@ int main(int argc, char **argv)
            {"help",  no_argument,       0, 'h'},
            {"6dfof", no_argument,       0, 0},      /* 6dfof group file                 */
            {"ahf",   no_argument,       0, 0},      /* ahf group file                   */
+           {"skid",  no_argument,       0, 0},      /* skid group file                  */
            {"check", no_argument,       0, 0},      /* only check file consistency      */
            {"tag",   required_argument, 0, 0},      /* preface warnings/errors with tag */
            {0, 0, 0, 0}
@@ -568,6 +623,8 @@ int main(int argc, char **argv)
                     format = FMT_6DFOF;
                 else if (!strcmp("ahf", long_options[option_index].name))
                     format = FMT_AHF;
+                else if (!strcmp("skid", long_options[option_index].name))
+                    format = FMT_SKID;
                 else if (!strcmp("check", long_options[option_index].name))
                     check = 1;
                 else if (!strcmp("tag", long_options[option_index].name))
@@ -632,6 +689,10 @@ int main(int argc, char **argv)
         case FMT_AHF:
             read_ahf_groups(fpGrpD, &D, &nD);
             read_ahf_groups(fpGrpP, &P, &nP);
+            break;
+        case FMT_SKID:
+            read_skid_groups(fpGrpD, &D, &nD);
+            read_skid_groups(fpGrpP, &P, &nP);
             break;
     }
 

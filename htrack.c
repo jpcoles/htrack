@@ -409,10 +409,96 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
     return 0;
 }
 
+//==============================================================================
+//                              read_6dfof_groups
+//==============================================================================
+int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
+{
+    int read;
+
+    char *line = NULL;
+    size_t len;
+
+    VL(1) printf("Reading 6DFOF format group file.\n");
+
+    uint64_t n_groups=0;
+    group_t *groups = NULL;
+    uint64_t id, i;
+    uint64_t allocd = 0;
+
+    while (!feof(in))
+    {
+        /* Read the whole line */
+        read = getline(&line, &len, in);
+        if (read <= 0 || line[0] == '#') continue;
+
+        /* Now extract just the id */
+        read = sscanf(line, "%ld", &id);
+        ERRORIF(read != 1, "Missing columns. Expected at least 1.");
+
+        //--------------------------------------------------------------------
+        // If the group file lists an "unbounded" group, skip it.
+        //--------------------------------------------------------------------
+        if (id == 0) continue;
+
+        if (id > allocd) 
+        {
+            uint64_t n = allocd;
+            if (n == 0) n = 2048;
+            while (n < id) n *= 2;
+
+            groups = REALLOC(groups, group_t, n+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + allocd+1, 0, n-allocd, group_t);
+
+            for (i=allocd+1; i <= n; i++)
+            {
+                groups[i].id  = INVALID_GROUP_ID;
+                groups[i].pid = INVALID_GROUP_ID;
+            }
+
+            allocd = n;
+        }
+
+        if (id > n_groups) n_groups = id;
+        groups[id].id = id;
+        //--------------------------------------------------------------------
+        // Group progenitors default to the field.
+        //--------------------------------------------------------------------
+        groups[id].pid = 0;
+
+#if 0
+        groups[id].R   = 0;
+        groups[id].id  = n_groups;
+        groups[id].pid = 0;
+#endif
+    }
+
+    assert(ferror(in) == 0);
+
+    if (groups == NULL)
+    {
+        WARNIF(1, "Stat file has no groups.");
+        groups = REALLOC(groups, group_t, 1);
+        ERRORIF(groups == NULL, "No memory for mass list.");
+    }
+
+    MEMSET(groups, 0, 1, group_t);
+    groups[0].id   = 0;
+    groups[0].pid  = INVALID_GROUP_ID;
+
+    if (line != NULL) free(NULL);
+
+    *n_groups0 = n_groups;
+    *groups0   = groups;
+
+    return 0;
+}
+//
 //============================================================================
 //                              read_skid_groups
 //============================================================================
-int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
+int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 {
     int read;
 
@@ -542,7 +628,39 @@ int read_work(FILE *in, work_t **work0, int *work_len0)
 //============================================================================
 void help()
 {
-    fprintf(stderr, "Usage: htrack [--help] [--h H0/100] [-w aivm] [-o prefix] [-f file]\n");
+    fprintf(stderr, 
+    
+    "Usage: htrack [OPTIONS] WORKFILE\n"
+    "Generate halo tracks from files listed in WORKFILE.\n"
+    "\n"
+    "OPTIONS are\n"
+    "\n"
+    "      --ahf                    Group files are in AHF format.\n"
+    "      --skid                   Group files are in SKID format.\n"
+    "      --6dfof                  Group files are in 6DFOF format from PKDGRAV.\n"
+    "\n"
+    "\n"
+    "  -w, --what=WHAT              What to output. WHAT may be any of 'aivmr'\n"
+    "                               where 'i' means halo id,\n"
+    "                                     'v' means vmax,\n"
+    "                                     'm' means mass,\n"
+    "                                     'r' means position relative to halo 1,\n"
+    "                               and   'a' means all of the above.\n"
+    "  -o, --output-prefix=PREFIX   Output files will be labeled with PREFIX.\n"
+    "                               The default is 'htrack'.\n"
+    "      --help                   Show this help text.\n"
+    "\n"
+    "\n"
+    "WORKFILE must contain a list of files to work on. Each line has the format\n"
+    "\n"
+    "   <redshift> <stats file> <progenitor file>\n"
+    "\n"
+    "where <stats file> contains group information from a halo finder and\n"
+    "<progenitor file> contains the lists of progenitors for each halo as\n"
+    "determined by pfind. These lines should be sorted by increasing redshift.\n"
+    "  \n"
+    "Report bugs to <jonathan@physik.uzh.ch>\n"
+    );
     exit(2);
 }
 
@@ -558,7 +676,7 @@ int main(int argc, char **argv)
     float h = 0.71;
 
     char *infile = NULL;
-    char *prefix = NULL;
+    char *prefix = "htrack";
     char *what = "ivmr";
     FILE *in = stdin;
 
