@@ -62,7 +62,7 @@ int list_ensure_index(list_t *list, uint64_t index)
 
         list->v = (uint64_t *)realloc(list->v, list->size * sizeof(uint64_t));
         if (list->v == NULL) return -1;
-        memset(list->v + list->len, 0, list->size - list->len);
+        memset(&(list->v[list->len]), 0, (list->size - list->len) * sizeof(uint64_t));
 
         /* IGNORE: No need to initialize anything. We keep track of how many valid objects there are. */
     }

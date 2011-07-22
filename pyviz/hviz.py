@@ -1,5 +1,21 @@
 import sys
-from sqlite3 import dbapi2 as sql
+for i in range(3):
+    try:
+        print i
+        if i == 0:
+            from pysqlite2 import dbapi2 as sql
+            from pysqlite2.dbapi2 import connect as sql_connect
+        elif i == 1:
+            from sqlite3 import dbapi2 as sql
+            from sqlite3.dbapi2 import connect as sql_connect
+        elif i == 2:
+            from sqlite import main as sql
+            from sqlite import connect as sql_connect
+        break
+    except ImportError, err:
+        print err
+        pass
+
 
 from environment import *
 from display import display_start
@@ -18,6 +34,8 @@ def load_halos(db):
 
     if format == 'skid':
         load_skid(cursor)
+    elif format == '6dfof_corrected':
+        load_6dfof_corrected(cursor)
     elif format == 'AHF':
         load_ahf(cursor)
 
@@ -73,6 +91,124 @@ def load_skid(cursor):
           'Rvir,'                             +
           'Mvir,'                             +
           'lambda               AS Lambda '   +
+          'FROM stat ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
+          #'FROM stat where Mass between 8e-7 and 2e-6 ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
+          #'FROM stat where Mass > 2e-8 ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x}
+    cmd =('SELECT '                           +
+          'snap_id,'                          +
+          'GlobalId             AS gid,'      +
+          'nTotal               AS npart,'    +
+          'Mass,'                             +
+          'Radius/%(maxx)f    AS Radius,'   +
+          '(X - %(cx)f)/%(maxx)f  AS X,'      +
+          '(Y - %(cy)f)/%(maxx)f  AS Y,'      +
+          '(Z - %(cz)f)/%(maxx)f  AS Z,'      +
+          'VX/%(maxv)f  AS VX,'      +
+          'VY/%(maxv)f  AS VY,'      +
+          'VZ/%(maxv)f  AS VZ '      +
+          'FROM stat ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
+          #'FROM stat where snap_id < 5 ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
+    print cmd
+
+    print "Selecting halos..."
+    o = cursor.execute(cmd)
+
+    columns = map(lambda x: x[0], o.description)
+
+    oldt = 0 
+    env.halos.append([None])
+#    s = '''\
+#class Halo
+#    def __init__(self, row):
+#        self.row = row
+#    def __getattribute__(self, name):
+#        return self.row[name]
+#'''
+
+#    for i,col in enumerate(columns):
+#        s += "def %h.%s = row[%i]; " % (col, i)
+        #s += "h.%s = row[%i]; " % (col, i)
+    #print s
+    print "Loading halos...",
+    for row in cursor:
+        t = row['snap_id']
+        i = row['gid']
+
+        #t,i = row[0:2]
+
+        #print t,i
+
+        if t != oldt:
+            print t
+            oldt = t
+            env.halos.append([[]])
+
+        h = Halo(row)
+        h.a, h.b, h.c = 1,1,1
+
+#        exec s
+
+        try:
+            env.halos[t].append(h)
+        except:
+            print len(env.halos), t
+            sys.exit(1)
+    print "Done."
+
+    print "Selecting tracks..."
+    cursor.execute('SELECT id,snap_id,gid FROM tracks ORDER BY id,snap_id ASC')
+    print "Loading tracks...",
+    env.mt = [None]
+    oldt = 0
+    for row in cursor:
+        track = row['id']
+        #t     = row['snap_id']
+        #gid   = row['gid']
+
+        if track != oldt:
+            oldt = track
+            env.mt.append([[]])
+            #env.mt.append([[]] * 33)
+
+        env.mt[track].append(row)
+    print "Done."
+
+def load_6dfof_corrected(cursor):
+
+    cursor.execute('SELECT min(X),max(X),min(Y),max(Y),min(Z),max(Z), max(GlobalId) FROM stat')
+    row = cursor.fetchone()
+    xmin,xmax, ymin,ymax, zmin,zmax = row[0],row[1], row[2],row[3], row[4],row[5]
+    env.max_x = max(max(xmax-xmin, ymax-ymin), zmax-zmin)
+
+    cursor.execute('SELECT min(VX),max(VX),min(VY),max(VY),min(VZ),max(VZ) FROM stat')
+    row = cursor.fetchone()
+    vxmin,vxmax, vymin,vymax, vzmin,vzmax = row[0],row[1], row[2],row[3], row[4],row[5]
+    env.max_v = max(max(vxmax-vxmin, vymax-vymin), vzmax-vzmin)
+
+    if env.max_x == 0: env.max_x = 1;
+    if env.max_v == 0: env.max_v = 1;
+
+    cx = (xmax+xmin) / 2
+    cy = (ymax+ymin) / 2
+    cz = (zmax+zmin) / 2
+
+          #'Radius/%(maxx)f  AS Radius,'   + \
+          #'Radius  AS Radius,'   + \
+    cmd =('SELECT '                           +
+          'snap_id         INTEGER,'          +
+          'GlobalId        INTEGER,'          +
+          'nTotal          INTEGER,'          +
+          '(X - %(cx)f)/%(maxx)f  AS X,'      +
+          '(Y - %(cy)f)/%(maxx)f  AS Y,'      +
+          '(Z - %(cz)f)/%(maxx)f  AS Z,'      +
+          'VX/%(maxv)f  AS VX,'      +
+          'VY/%(maxv)f  AS VY,'      +
+          'VZ/%(maxv)f  AS VZ,'      +
+          'Vmax            REAL,'         +
+          'rVmax           REAL,'         +
+          'M_tidal         REAL,'         +
+          'R_tidal         REAL,'         +
+
           'FROM stat ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
           #'FROM stat where Mass between 8e-7 and 2e-6 ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x, 'maxv':env.max_v}
           #'FROM stat where Mass > 2e-8 ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x}

@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS header (
 
 create_table_snapinfo = '''\
 CREATE TABLE IF NOT EXISTS snapinfo (
-    snap_id     INTEGER PRIMARY_KEY,
+    snap_id     INTEGER PRIMARY KEY,
     snapshot    INTEGER,
     redshift    REAL,
     time        REAL,

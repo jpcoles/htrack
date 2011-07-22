@@ -38,8 +38,9 @@ typedef struct
 {
     uint64_t id;
     uint64_t npart;
-    float M;
-    float vMax;
+    uint64_t npart_stat;
+    //float M;
+    //float vMax;
     set_t ps;
     list_t pfrac;
     set_t belong;
@@ -55,9 +56,9 @@ int  sort_group_progenitors(group_t *groups, uint64_t n_groups);
 int  write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups);
 int  read_ahf_groups_masses(FILE *in, group_t **groups0, uint64_t *n_groups0);
 int  prog_mass_cmp(const void *a0, const void *b0);
-int  build_prog_list(FILE *fpD, FILE *fpP, 
-                     group_t *D, uint64_t nD, 
-                     group_t *P, uint64_t nP);
-
+int build_prog_list(FILE *fpD, FILE *fpP, 
+                    group_t *D, uint64_t nD, 
+                    group_t *P, uint64_t nP,
+                    char check);
 #endif
 

@@ -5,52 +5,27 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <limits.h>
 #include "htrack.h"
 #include "jpcmacros.h"
-#include "cosmo.h"
 #include "getline.h"
-
-#define SECONDS_PER_GYR         (3.1536e16)
-
-#define IGNORE_PHASE_SPACE              (1)
-#define IGNORE_MASS_JUMP                (1)
 
 #define DELIM                       " \n\r"
 
+#define INVALID_GROUP_ID            ULONG_MAX
+
+#define FMT_6DFOF    1
+#define FMT_AHF     2
+
 int verbosity = 0;
 
-int  read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0);
-int  accept_phase_space(group_t *d, group_t *p, float dt);
-int  accept_mass(group_t *d, group_t *p);
-int  track(FILE *in, group_t *D, group_t *P);
+int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0);
+int find_progenitors(FILE *in, group_t *D, uint64_t nD);
 void help();
 
 //============================================================================
-//                             accept_phase_space
+//                          parse_gid_and_belonging
 //============================================================================
-int accept_phase_space(group_t *d, group_t *p, float dt)
-{
-    const float eps = 10.9;
-
-#define KM_PER_MPC (3.08567759756e19)
-
-    float r = sqrt(d->r[0]*d->r[0] + d->r[1]*d->r[1] + d->r[2]*d->r[2]);
-
-    return fabs(d->r[0] - (p->r[0] + dt*p->v[0]/KM_PER_MPC)) / r  < eps
-        && fabs(d->r[1] - (p->r[1] + dt*p->v[1]/KM_PER_MPC)) / r  < eps
-        && fabs(d->r[2] - (p->r[2] + dt*p->v[2]/KM_PER_MPC)) / r  < eps;
-}
-
-#if 1
-//============================================================================
-//                                accept_mass
-//============================================================================
-int accept_mass(group_t *d, group_t *p)
-{
-    return ! (p->vMax > 3*d->vMax);
-}
-#endif
-
 uint64_t parse_gid_and_belonging(group_t *d, char *s)
 {
     char *endptr;
@@ -63,7 +38,7 @@ uint64_t parse_gid_and_belonging(group_t *d, char *s)
             s = endptr+1;
             uint64_t id = strtol(s, &endptr, 10);
             if (s == endptr) break;
-            set_add(&d[gid].belong, id);
+            list_append(&d[gid].belong, id);
         }
     }
 
@@ -71,77 +46,104 @@ uint64_t parse_gid_and_belonging(group_t *d, char *s)
 }
 
 //============================================================================
-//                                   track
+//                              find_progenitors
 //============================================================================
-int track(FILE *in, group_t *D, group_t *P)
+int find_progenitors(FILE *in, group_t *D, uint64_t nD)
 {
     int i,j;
     char *line = NULL;
     size_t len;
     uint64_t p;
+    uint64_t maxp=0;
+    static uint64_t allocd = 0;
 
-    set_t used  = EMPTY_SET;
-    set_t order = EMPTY_SET;
+    list_t order = EMPTY_LIST;
 
+    static char *used = NULL;
+
+    //------------------------------------------------------------------------
+    // Parse the input. Each row has three main sections: 
+    //  (1) Group ID, (2) Number of progenitors, (3) List of progenitors.
+    // Each progenitor in section 3 may consist of a comma-separated list
+    // of values (no spaces). We are only interested in the first value,
+    // which is the id of the progenitor.
+    //------------------------------------------------------------------------
+    int errors_found = 0;
     while (!feof(in))
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        //uint64_t gid   = atol(strtok(line, DELIM));
         uint64_t gid   = parse_gid_and_belonging(D, strtok(line, DELIM));
         uint64_t nprog = atol(strtok(NULL, DELIM));
 
+#if 1
+        if (gid > nD || D[gid].id == INVALID_GROUP_ID)
+        {
+            eprintf("Group %ld doesn't exist in stat file\n", gid);
+            errors_found = 1;
+            continue;
+        }
+#endif
+
+        ERRORIF(D[gid].id == INVALID_GROUP_ID, "Group %ld doesn't exist in stat file\n", gid);
+
         if (gid == 0) continue;
 
-        set_add(&order, gid);
+        list_append(&order, gid);
 
+        // Read progenitor id's
         for (i=0; i < nprog; i++)
-            set_add(&D[gid].ps, atol(strtok(NULL, DELIM)));
+        {
+            p = atol(strtok(NULL, DELIM));
+            if (p > maxp) maxp = p;
+            list_append(&D[gid].ps, p);
+        }
     }
 
-    uint64_t n_not_first = 0;
+#if 1
+    if (errors_found) return 0;
+#endif
 
-    for (i=0; i < order.len; i++)
+    ERRORIF(order.len == 0, "Empty progenitor file.");
+
+    if (maxp >= allocd)
     {
+        if (allocd == 0) allocd = 2048;
+        while (maxp >= allocd) allocd *= 2;
+        used = REALLOC(used, char, allocd+1);
+    }
+
+    MEMSET(used, 0, maxp+1, char);
+
+    //------------------------------------------------------------------------
+    // For each decendent we find the first progenitor that passes all
+    // acceptance criteria.  If we accept the progenitor, then it is added to a
+    // list used groups so that it will not be considered again. Decendents are
+    // considered in the order they appear in the input file.
+    //------------------------------------------------------------------------
+    for (i=0; i < order.len; i++) 
+    { 
         uint64_t gid = order.v[i];
 
-        D[gid].pid = 0;
+        group_t *d = &D[gid];
 
-        //if (D[gid].Mvir < 5e7) continue;
+        d->pid = 0;
 
-        //====================================================================
-        // Find the first progenitor that passes all acceptance criteria.
-        // If we accept it, then add it to the list of used groups so that
-        // it will not be considered again.
-        //====================================================================
-        int accept = 0;
-        for (j=0; j < D[gid].ps.len && !accept; j++)
+        // Find acceptable progenitor
+        for (j=0; j < d->ps.len; j++)
         {
-            p = D[gid].ps.v[j];
-            accept = set_in(&used, p) < 0;
-#if 0
-                  && (IGNORE_PHASE_SPACE || accept_phase_space(&D[gid], &P[p], dt))
-                  && (IGNORE_MASS_JUMP   || accept_mass(&D[gid], &P[p]))
-                  ;
-#endif
-            if (accept) break;
-        }
+            p = d->ps.v[j];
 
-        if (accept) 
-        {
-            set_add(&used, p);
-            D[gid].pid = p;
-            if (j != 0 || D[gid].ps.len == 1)
+            if (!used[p])
             {
-                eprintf("%ld\n", gid);
-                n_not_first++;
+                used[p] = 1;
+                d->pid = p;
+                break;
             }
         }
 
+        assert(d->id  != INVALID_GROUP_ID);
+        assert(d->pid != INVALID_GROUP_ID);
     }
-
-    eprintf("n_not_first = %ld of %ld (%f)\n", n_not_first, order.len, (float)n_not_first/order.len);
-
-    set_free(&used);
 
     if (line != NULL) free(line);
 
@@ -155,49 +157,69 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 {
     track_t *tracks = NULL;
     size_t allocd = 0;
+    size_t allocd_guess = 1<<20;
 
     int i,j,k;                                                                      
-    uint64_t next;                                                                  
-    int n_tracks=0;                                                           
+    uint64_t next, prev;
+    int cur_track=0;                                                           
+
+    z_t *Z = zs;
 
     for (k=0; k < n_zs; k++) 
         for (j=1; j <= zs[k].n_groups; j++) 
+        {
             zs[k].used[j] = 0; 
+            if (zs[k].g[j].id != INVALID_GROUP_ID)
+                ERRORIF(zs[k].g[j].pid == INVALID_GROUP_ID, "%i %i %ld %i", k, j, zs[k].g[j].id, zs[k].n_groups);
+        }
 
-    for (k=0; k < n_zs; k++)                                                        
-    {                                                                               
-        for (j=1; j <= zs[k].n_groups; j++)                                         
-        {                                                                           
-            if (zs[k].used[j]) continue;                                            
+    for (k=0; k < n_zs; k++, Z++)
+    {
+        for (j=1; j <= Z->n_groups; j++)
+        {
+            if (Z->g[j].id == INVALID_GROUP_ID) continue;
+            if (Z->used[j]) continue;
 
-            if (n_tracks == allocd)
+            if (cur_track == allocd)
             {
-                if (allocd == 0) allocd = 64;
+                if (allocd == 0) allocd = allocd_guess;
                 else allocd *= 2;
 
                 tracks = REALLOC(tracks, track_t, allocd);
-                memset(tracks+n_tracks, 0, allocd-n_tracks);
+                memset(tracks+cur_track, 0, allocd-cur_track);
             }
 
 
-            tracks[n_tracks].t = CALLOC(uint64_t, n_zs);
+            tracks[cur_track].t = CALLOC(uint64_t, n_zs);
 
-            for (i=k, next=j; i < n_zs; i++)                                        
-            {                                                                       
-                tracks[n_tracks].t[i] = next;
-                zs[i].used[next] = 1;                                               
-                uint64_t t = zs[i].g[next].pid;                                     
-                //if (i+1 < n_zs) assert(t == zs[i+1].g[t].id);                       
-                next = t;                                                           
-            }                                                               	    
+            z_t *Zt = Z;
+            next    = Zt->g[j].id;
+            prev    = next;
 
-            n_tracks++;                                                       
-        }									                                        
-    }                                                                               
-    VL(2) fprintf(stderr, "n_tracks=%i\n", n_tracks);                   
+            for (i=k; next != 0; Zt++, i++)
+            {
+                //if (j == 16836) eprintf("-> %ld\n", next);
+                //if (next == INVALID_GROUP_ID) break;
+                //if (next == 0) break;
+
+                //eprintf("%i %i/%i %i %i %ld\n", k, j, Z->n_groups, i, cur_track, next);
+                //eprintf("%i %i %i %i %ld\n", k, j, i, cur_track, next);
+                //assert(next != INVALID_GROUP_ID);
+                ERRORIF(next == INVALID_GROUP_ID, "%i %i %ld %i", k, j, prev, i);
+
+                tracks[cur_track].t[i] = next;
+                Zt->used[next] = 1;
+                prev = next;
+                next = Zt->g[next].pid;
+            }
+
+            cur_track++;
+        }
+    }
+    VL(2) fprintf(stderr, "n_tracks=%i\n", cur_track);
 
     *tracks0   = tracks;
-    *n_tracks0 = n_tracks;
+    *n_tracks0 = cur_track;
 
     return 0;
 }
@@ -205,39 +227,57 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 //============================================================================
 //                                WRITE_MATRIX
 //============================================================================
-#define WRITE_MATRIX(fname, _prop, _fmt)                                            \
-int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)                                             \
-{                                                                                   \
-    int i,t;                                                                      \
-    fprintf(out, "%i %i\n", n_tracks, n_zs); \
-    for (t=0; t < n_tracks; t++)                                         \
-    {                                                                           \
-        for (i=0; i < n_zs; i++)                                                        \
-            fprintf(out, _fmt, zs[i].g[tracks[t].t[i]]._prop);                            \
-        fprintf(out, "\n");							                            \
-    }                                                                               \
-    return 0;                                                                       \
+#define WRITE_MATRIX(fname, _prop, _fmt)                                    \
+int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)      \
+{                                                                           \
+    int i,t;                                                                \
+    fprintf(out, "%i %i\n", n_tracks, n_zs);                                \
+    for (t=0; t < n_tracks; t++)                                            \
+    {                                                                       \
+        for (i=0; i < n_zs; i++)                                            \
+            fprintf(out, _fmt, zs[i].g[tracks[t].t[i]]._prop);              \
+        fprintf(out, "\n");							                        \
+    }                                                                       \
+    return 0;                                                               \
 }
 
 //============================================================================
 //                             write_pid_matrix
 //============================================================================
-int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)                                             \
+int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
 {
     int i,t,j;
     fprintf(out, "%i %i\n", n_tracks, n_zs);
     for (t=0; t < n_tracks; t++)
     {
+        int seen = 0;
         for (i=0; i < n_zs; i++)
         {
-            group_t *g = &zs[i].g[tracks[t].t[i]];
-            fprintf(out, "%ld", g->id);
+            int q = tracks[t].t[i];
+            group_t *g = &zs[i].g[q];
+            if (g->id == INVALID_GROUP_ID)
+            {
+                fprintf(stderr, "%i %i %i\n", t, i, q);
+                assert(g->id != INVALID_GROUP_ID);
+            }
+
+            if (g->id == 0 && seen) break;
             if (g->id != 0)
             {
-                for (j=0; j < g->belong.len; j++)
-                    fprintf(out, ",%ld", g->belong.v[j]);
+                if (!seen)
+                {
+                    fprintf(out, "%i ", i);
+                    seen = 1;
+                }
+
+                fprintf(out, "%ld", g->id);
+                if (g->id != 0)
+                {
+                    for (j=0; j < g->belong.len; j++)
+                        fprintf(out, ",%ld", g->belong.v[j]);
+                }
+                fprintf(out, " ");
             }
-            fprintf(out, " ");
         }
         fprintf(out, "\n");
     }
@@ -247,17 +287,17 @@ int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks
 //============================================================================
 //                             write_mass_matrix
 //============================================================================
-WRITE_MATRIX(write_mass_matrix, Mvir, "%.3e ")
+//WRITE_MATRIX(write_mass_matrix, Mvir, "%.3e ")
 
 //============================================================================
 //                             write_vmax_matrix
 //============================================================================
-WRITE_MATRIX(write_vmax_matrix, vMax, "%.3e ")
+//WRITE_MATRIX(write_vmax_matrix, vMax, "%.3e ")
 
 //============================================================================
 //                               write_R_matrix
 //============================================================================
-WRITE_MATRIX(write_R_matrix, R, "%.3e ")
+//WRITE_MATRIX(write_R_matrix, R, "%.3e ")
 
 //============================================================================
 //                               calc_R
@@ -265,6 +305,7 @@ WRITE_MATRIX(write_R_matrix, R, "%.3e ")
 // Computes the distance of each halo from the halo considered to be halo 1
 // at each redshift.
 //============================================================================
+#if 0
 int calc_R(z_t *zs, int n_zs, track_t *tracks, int n_tracks)
 {                                                                                   
     int i, t;
@@ -288,6 +329,7 @@ int calc_R(z_t *zs, int n_zs, track_t *tracks, int n_tracks)
     }
     return 0;
 }
+#endif
 
 //============================================================================
 //                              read_ahf_groups
@@ -307,9 +349,6 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 
     while (!feof(in))
     {
-        uint32_t di;
-        float df;
-
         /* Read the whole line */
         read = getline(&line, &len, in);
         if (read <= 0 || line[0] == '#') continue;
@@ -327,6 +366,7 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
         n_groups++;
 
         /* Now extract just the first 11 values */
+#if 0
         read = 
             sscanf(line, "%d %d %g %g %g %g %g %g %g %g %g",
                 /* No. Particles    (1)   */
@@ -342,22 +382,110 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
                 /* Vmax             (11)  */
                 &groups[n_groups].vMax
                 );
-
         ERRORIF(read != 11, "Missing columns. Expected at least 11.");
-
-        groups[n_groups].R   = 0;
-        groups[n_groups].id  = n_groups;
-        groups[n_groups].pid = 0;
         ERRORIF(groups[n_groups].Mvir <= 0, "Group %ld has bad mass %f in group file.", n_groups, groups[n_groups].Mvir);
+        groups[n_groups].R   = 0;
+#endif
+
+        groups[n_groups].id  = n_groups;
+        groups[n_groups].pid = INVALID_GROUP_ID;
     }
 
     if (n_groups > 0)
     {
-        groups[0].Mvir = 0;
         groups[0].id   = 0;
-        groups[0].pid  = 0;
+        groups[0].pid  = INVALID_GROUP_ID;
+#if 0
         groups[0].R    = 0;
+        groups[0].Mvir = 0;
+#endif
     }
+
+    if (line != NULL) free(NULL);
+
+    *n_groups0 = n_groups;
+    *groups0   = groups;
+
+    return 0;
+}
+
+//============================================================================
+//                              read_skid_groups
+//============================================================================
+int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
+{
+    int read;
+
+    char *line = NULL;
+    size_t len;
+
+    VL(1) printf("Reading 6DFOF format group file.\n");
+
+    uint64_t n_groups=0;
+    group_t *groups = NULL;
+    uint64_t id, i;
+    uint64_t allocd = 0;
+
+    while (!feof(in))
+    {
+        /* Read the whole line */
+        read = getline(&line, &len, in);
+        if (read <= 0 || line[0] == '#') continue;
+
+        /* Now extract just the id */
+        read = sscanf(line, "%ld", &id);
+        ERRORIF(read != 1, "Missing columns. Expected at least 1.");
+
+        //--------------------------------------------------------------------
+        // If the group file lists an "unbounded" group, skip it.
+        //--------------------------------------------------------------------
+        if (id == 0) continue;
+
+        if (id > allocd) 
+        {
+            uint64_t n = allocd;
+            if (n == 0) n = 2048;
+            while (n < id) n *= 2;
+
+            groups = REALLOC(groups, group_t, n+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + allocd+1, 0, n-allocd, group_t);
+
+            for (i=allocd+1; i <= n; i++)
+            {
+                groups[i].id  = INVALID_GROUP_ID;
+                groups[i].pid = INVALID_GROUP_ID;
+            }
+
+            allocd = n;
+        }
+
+        if (id > n_groups) n_groups = id;
+        groups[id].id = id;
+        //--------------------------------------------------------------------
+        // Group progenitors default to the field.
+        //--------------------------------------------------------------------
+        groups[id].pid = 0;
+
+#if 0
+        groups[id].R   = 0;
+        groups[id].id  = n_groups;
+        groups[id].pid = 0;
+#endif
+    }
+
+    assert(ferror(in) == 0);
+
+    if (groups == NULL)
+    {
+        WARNIF(1, "Stat file has no groups.");
+        groups = REALLOC(groups, group_t, 1);
+        ERRORIF(groups == NULL, "No memory for mass list.");
+    }
+
+    MEMSET(groups, 0, 1, group_t);
+    groups[0].id   = 0;
+    groups[0].pid  = INVALID_GROUP_ID;
 
     if (line != NULL) free(NULL);
 
@@ -372,44 +500,40 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 //============================================================================
 int read_work(FILE *in, work_t **work0, int *work_len0)
 {
-    work_t *work = NULL;
-    int work_len = 0; 
+    int i;
     int allocd=0;
+    work_t *work = NULL;
 
     char *line = NULL;
     size_t len;
 
-    char *t;
-
-    while (!feof(in))
+    for (i=0; !feof(in); i++)
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
         fprintf(stderr, line);
 
-        if (work_len == allocd)
+        if (i == allocd)
         {
             if (allocd == 0) allocd = 32; else allocd *= 2;
             work = REALLOC(work, work_t, allocd);
             assert(work != NULL);
         }
 
-        t = strtok(line, " \n\r"); 
+        const char *t = strtok(line, DELIM); 
         if (t == NULL) continue; 
-        float z  = atof(t);
-        char *f1 = strtok(NULL, DELIM);
-        char *f2 = strtok(NULL, DELIM);
+        const float z  = atof(t);
+        const char *f1 = strtok(NULL, DELIM);
+        const char *f2 = strtok(NULL, DELIM);
 
-        work[work_len].z = z;
-        if (f1 != NULL) { work[work_len].stats = MALLOC(char, strlen(f1)+1); strcpy(work[work_len].stats, f1); }
-        if (f2 != NULL) { work[work_len].pf    = MALLOC(char, strlen(f2)+1); strcpy(work[work_len].pf,    f2); }
-
-        work_len++;
+        work[i].z = z;
+        if (f1 != NULL) { work[i].stats = MALLOC(char, strlen(f1)+1); assert(work[i].stats != NULL); strcpy(work[i].stats, f1); }
+        if (f2 != NULL) { work[i].pf    = MALLOC(char, strlen(f2)+1); assert(work[i].pf    != NULL); strcpy(work[i].pf,    f2); }
     }
 
     if (line != NULL) free(line);
 
-    *work0 = work;
-    *work_len0 = work_len;
+    *work0     = work;
+    *work_len0 = i-1;
     return 0;
 }
 
@@ -427,18 +551,18 @@ void help()
 //============================================================================
 int main(int argc, char **argv)
 {
-    int i;
+    int i,j;
     group_t *D = NULL;
-    group_t *P = NULL;
-    uint64_t nD = 0, nP = 0;
+    uint64_t nD = 0;
 
     float h = 0.71;
-    float zD = -1, zP = -1;
 
     char *infile = NULL;
     char *prefix = NULL;
     char *what = "ivmr";
     FILE *in = stdin;
+
+    int format = FMT_AHF;
 
     //if (argc < 2) help();
 
@@ -448,6 +572,8 @@ int main(int argc, char **argv)
         int option_index = 0;
         static struct option long_options[] = {
            {"help",          no_argument,       0, 'h'},
+           {"6dfof",         no_argument,       0, 0},
+           {"ahf",           no_argument,       0, 0},
            {"h",             required_argument, 0,   0},
            {"what",          required_argument, 0, 'w'},
            {"output-prefix", required_argument, 0, 'o'},
@@ -463,7 +589,12 @@ int main(int argc, char **argv)
             case 0:
                 if (!strcmp("h", long_options[option_index].name))
                     h = atof(optarg);
+                else if (!strcmp("6dfof", long_options[option_index].name))
+                    format = FMT_6DFOF;
+                else if (!strcmp("ahf", long_options[option_index].name))
+                    format = FMT_AHF;
                 break;
+
             case 'h':
                 help();
                 break;
@@ -497,8 +628,8 @@ int main(int argc, char **argv)
         }
     }
 
-    //========================================================================
-    //========================================================================
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
 
     if (infile != NULL)
     {
@@ -506,86 +637,111 @@ int main(int argc, char **argv)
         ERRORIF(in == NULL, "Can't open %s.", infile);
     }
 
-    z_t zs[256];
+    z_t *zs = NULL;
     int n_zs=0; 
 
+
+    //------------------------------------------------------------------------
+    // Read in the list of files to process.
+    //------------------------------------------------------------------------
     work_t *work = NULL;
     int work_len;
     read_work(in, &work, &work_len);
+    ERRORIF(work_len < 1, "No work to do.");
     if (in != stdin) fclose(in);
+
+
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
+
+
+    int (*read_groups)(FILE *in, group_t **groups0, uint64_t *n_groups0) = NULL;
+
+    switch (format)
+    {
+        case FMT_6DFOF:
+            read_groups = read_6dfof_groups;
+            break;
+        case FMT_AHF:
+            read_groups = read_ahf_groups;
+            break;
+    }
+
+
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
+
+
+    //work_len = 10;
+    zs = MALLOC(z_t, work_len);
+    n_zs = work_len;
+
+    z_t *Z = zs;
+
+
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
+
 
     FILE *pf_fp=NULL;
 
-    for (i=0; i < work_len; i++)
+    for (i=0; i < work_len; i++, Z++)
     {
         float z     = work[i].z;
         char *stats = work[i].stats;
         char *pf    = work[i].pf;
 
+        //--------------------------------------------------------------------
+        //--------------------------------------------------------------------
+
+        eprintf("__________________________________________________________________________\n");
+        eprintf("  [%i]  %f  %s %s\n", i+1, z, stats, pf);
+
         FILE *stats_fp = fopen(stats, "r");
         ERRORIF(stats_fp == NULL, "Can't open %s.", stats);
 
-        if (D == NULL)
-        {
-            ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open %s.", pf);
-            zD = z;
-            read_ahf_groups(stats_fp, &D, &nD);
-            fclose(stats_fp);
-            continue;
-        }
-        else if (P != NULL)
-        {
-            D  = P;
-            nD = nP;
-            zD = zP;
-        }
-
-        zP = z;
-        read_ahf_groups(stats_fp, &P, &nP);
+        //--------------------------------------------------------------------
+        read_groups(stats_fp, &D, &nD);
         fclose(stats_fp);
+        Z->n_groups = nD;
+        Z->g        = D;
+        Z->used     = CALLOC(int, nD+1); assert(Z->used != NULL);
+        //--------------------------------------------------------------------
 
-        //fprintf(stderr, "nD=%ld  nP=%ld\n", nD, nP);
-
-        //====================================================================
-        //====================================================================
-
-        cosmo_t c;
-        cosmo_init1(&c, h); 
-
-        //float dt = (cosmo_physical_time(&c, zD) - cosmo_physical_time(&c, zP)) * SECONDS_PER_GYR;
-
-        assert(pf_fp != NULL);
-
-        eprintf("__________________________________________________________________________\n");
-        eprintf("  %f\n", zD);
-
-        track(pf_fp, D, P);
-        zs[n_zs].n_groups = nD;
-        zs[n_zs].g = D;
-        zs[n_zs].used = CALLOC(int, nD+1);
-        n_zs++;
+        //eprintf("nD=%ld\n", nD);
 
         if (i == work_len-1)
         {
-            zs[n_zs].n_groups = nP;
-            zs[n_zs].g = P;
-            zs[n_zs].used = CALLOC(int, nP+1);
-            n_zs++;
+            eprintf("HERE\n");
+            for (j=0; j <= Z->n_groups; j++) Z->g[j].pid = 0;
+            continue;
         }
 
-        //====================================================================
-        //====================================================================
-
-        fclose(pf_fp);
-        if (pf != NULL)
+        if (Z->n_groups > 0)
+        {
             ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open %s.", pf);
+            //----------------------------------------------------------------
+            find_progenitors(pf_fp, D, nD);
+            //----------------------------------------------------------------
+            fclose(pf_fp);
+        }
     }
 
     track_t *tracks;
     uint64_t n_tracks;
-    build_tracks(zs, n_zs, &tracks, &n_tracks);
 
-    assert(zs[0].n_groups != 0);
+    //------------------------------------------------------------------------
+    eprintf("Building tracks...\n");
+    build_tracks(zs, n_zs, &tracks, &n_tracks);
+    //------------------------------------------------------------------------
+
+    //assert(zs[0].n_groups != 0);
+
+    //------------------------------------------------------------------------
+    // Output.
+    //------------------------------------------------------------------------
+
+    eprintf("Writing output...\n");
 
     FILE *fp = stdout;
     char *fname = MALLOC(char, strlen(prefix)+1+1+1+2+1);
@@ -600,12 +756,14 @@ int main(int argc, char **argv)
         switch (*what)
         {
             case 'i': write_pid_matrix(fp, zs, n_zs, tracks, n_tracks);  break;
+#if 0
             case 'm': write_mass_matrix(fp, zs, n_zs, tracks, n_tracks); break;
             case 'v': write_vmax_matrix(fp, zs, n_zs, tracks, n_tracks); break;
             case 'r': 
                 calc_R(zs, n_zs, tracks, n_tracks); 
                 write_R_matrix(fp, zs, n_zs, tracks, n_tracks); 
                 break;
+#endif
         }
 
         if (fp != stdout) fclose(fp);
