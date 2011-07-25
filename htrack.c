@@ -16,6 +16,7 @@
 
 #define FMT_6DFOF    1
 #define FMT_AHF     2
+#define FMT_SKID     3
 
 int verbosity = 0;
 
@@ -247,6 +248,26 @@ int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)      \
 int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
 {
     int i,t,j;
+    fprintf(out, 
+    "# Format:\n"
+    "#     The first line gives the number of tracks that follow and the\n"
+    "#     maximum number of track columns. The total number of columns\n"
+    "#     may be one more that the number of tracks as described below.\n"
+    "#\n"
+    "#     Each subsequent line has the format\n"
+    "#\n"
+    "#         START GID [GID ...]\n"
+    "#\n"
+    "#     where each GID corresponds to an output.\n"
+    "#\n"
+    "#     START is the first track column where a group appears. Some\n"
+    "#     groups may not appear until earlier in time, thus START will\n"
+    "#     be greater than zero.\n"
+    "#\n"
+    "#     GID is the group id in a particular output.\n"
+    "#\n"
+    );
+
     fprintf(out, "%i %i\n", n_tracks, n_zs);
     for (t=0; t < n_tracks; t++)
     {
@@ -257,7 +278,7 @@ int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks
             group_t *g = &zs[i].g[q];
             if (g->id == INVALID_GROUP_ID)
             {
-                fprintf(stderr, "%i %i %i\n", t, i, q);
+                fprintf(stderr, "# %i %i %i\n", t, i, q);
                 assert(g->id != INVALID_GROUP_ID);
             }
 
@@ -505,7 +526,7 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
     char *line = NULL;
     size_t len;
 
-    VL(1) printf("Reading 6DFOF format group file.\n");
+    VL(1) printf("Reading SKID format group file.\n");
 
     uint64_t n_groups=0;
     group_t *groups = NULL;
@@ -632,6 +653,7 @@ void help()
     
     "Usage: htrack [OPTIONS] WORKFILE\n"
     "Generate halo tracks from files listed in WORKFILE.\n"
+    "If WORKFILE is -, read from standard input.\n"
     "\n"
     "OPTIONS are\n"
     "\n"
@@ -676,7 +698,7 @@ int main(int argc, char **argv)
     float h = 0.71;
 
     char *infile = NULL;
-    char *prefix = "htrack";
+    char *prefix = NULL;
     char *what = "ivmr";
     FILE *in = stdin;
 
@@ -692,6 +714,7 @@ int main(int argc, char **argv)
            {"help",          no_argument,       0, 'h'},
            {"6dfof",         no_argument,       0, 0},
            {"ahf",           no_argument,       0, 0},
+           {"skid",          no_argument,       0, 0},
            {"h",             required_argument, 0,   0},
            {"what",          required_argument, 0, 'w'},
            {"output-prefix", required_argument, 0, 'o'},
@@ -711,6 +734,8 @@ int main(int argc, char **argv)
                     format = FMT_6DFOF;
                 else if (!strcmp("ahf", long_options[option_index].name))
                     format = FMT_AHF;
+                else if (!strcmp("skid", long_options[option_index].name))
+                    format = FMT_SKID;
                 break;
 
             case 'h':
@@ -746,10 +771,15 @@ int main(int argc, char **argv)
         }
     }
 
+    if (optind < argc)
+        infile = argv[optind++];
+    else
+        help();
+
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
 
-    if (infile != NULL)
+    if (infile != NULL && strcmp("-", infile) != 0)
     {
         in = fopen(infile, "r");
         ERRORIF(in == NULL, "Can't open %s.", infile);
@@ -782,6 +812,9 @@ int main(int argc, char **argv)
             break;
         case FMT_AHF:
             read_groups = read_ahf_groups;
+            break;
+        case FMT_SKID:
+            read_groups = read_skid_groups;
             break;
     }
 
@@ -830,7 +863,7 @@ int main(int argc, char **argv)
 
         if (i == work_len-1)
         {
-            eprintf("HERE\n");
+            //eprintf("HERE\n");
             for (j=0; j <= Z->n_groups; j++) Z->g[j].pid = 0;
             continue;
         }
@@ -862,13 +895,27 @@ int main(int argc, char **argv)
     eprintf("Writing output...\n");
 
     FILE *fp = stdout;
-    char *fname = MALLOC(char, strlen(prefix)+1+1+1+2+1);
+    int fname_len = 1+1+6+1;
+    if (prefix != NULL)
+        fname_len += strlen(prefix) + 1;
+    char *fname = MALLOC(char, fname_len);
     for (; *what; what++)
     {
         if (prefix) 
         {
-            sprintf(fname, "%s.%c.ht", prefix, *what);
-            ERRORIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+            switch (*what)
+            {
+                case 'm':
+                case 'r':
+                case 'v':
+                case 'i':
+                    if (prefix != NULL)
+                        sprintf(fname, "%s.%c.htrack", prefix, *what);
+                    else
+                        sprintf(fname, "%c.htrack", *what);
+                    ERRORIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+                    break;
+            }
         }
 
         switch (*what)

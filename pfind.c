@@ -68,14 +68,18 @@ void help()
 {
     fprintf(stderr, PROGRAM_ID "\n");
     fprintf(stderr, 
-    
-    "Usage: pfind <D> <DSTAT> <P> <PSTAT>\n"
-    "Find the progenitors of halos.\n"
+    "Usage: pfind DGRP DSTAT PGRP PSTAT\n"
+    "Find the progenitors (P) of decendent halos (D).\n"
     "\n"
-    "<D> contains a list of halo ids for each particle\n"
+    "    (P|D)GRP           A list of group ids for each particle.\n"
+    "    (P|D)STAT          A catalogue of groups.\n"
     "\n"
+    "Pfind compares two group files from an N-body simulation and determines\n"
+    "which particles from group P(rogenitor) end up in group D(escendant).\n"
+    "Particles for group D may come from many Ps in the past. The output\n"
+    "contains one line from each D and a list of Ps.\n"
     "\n"
-    
+    "Report bugs to <jonathan@physik.uzh.ch>\n"
     );
     exit(2);
 }
@@ -172,7 +176,18 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
     uint64_t i,j;
     group_t *g;
 
-    fprintf(out, "# %12s  %8s  %s\n", "GroupID(1)", "Nprog(2)", "Progenitors");
+    fprintf(out, 
+    "# Format:\n"
+    "#     GroupID(1) Nprog(2) Progenitors(3...)\n"
+    "#\n"
+    "# Progenitors(3...) is a list where each item has the form I(F,N) and where I is\n"
+    "# the progenitor id, F is the fraction of the decedent composed of particles\n"
+    "# from the progenitor and N is the number of particles from the progenitor.\n"
+    "#\n"
+    "# Groups are sorted in decending order by mass. Group 0 is always first.\n"
+    "# The progenitor list is sorted by fraction F with group 0 always last.\n"
+    "#\n"
+    );
     forall_groups(i, g, groups, n_groups)
     {
         //fprintf(out, "  %12ld  ", groups[i].id);
@@ -183,7 +198,7 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
         //--------------------------------------------------------------------
         // Group id (and belonging id's)
         //--------------------------------------------------------------------
-        fprintf(out, "%ld", g->belong.v[0]);
+        fprintf(out, "%-8ld", g->belong.v[0]);
         for (j=1; j < g->belong.len; j++)
             fprintf(out, ",%ld", g->belong.v[j]);
         fprintf(out, " ");
@@ -191,7 +206,7 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
         //--------------------------------------------------------------------
         // Number of progenitors
         //--------------------------------------------------------------------
-        fprintf(out, "%8ld  ", g->ps.len);
+        fprintf(out, "%-4ld  ", g->ps.len);
 
         //--------------------------------------------------------------------
         // Progenitors
@@ -199,7 +214,7 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
         for (j=0; j < g->ps.len; j++)
         {
             uint64_t pi = g->index.v[j];
-            fprintf(out, "%ld(%f,%ld) ", 
+            fprintf(out, "%8ld(%f,%ld) ", 
                 g->ps.v[pi], 
                 (float)g->pfrac.v[pi] / g->npart, 
                 g->pfrac.v[pi]);
@@ -537,6 +552,11 @@ int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 {
     int ret=0;
+    int read;
+    int i;
+    uint64_t allocd = 0;
+
+    uint64_t id, npart;
 
     char *line = NULL;
     size_t len;
@@ -544,27 +564,67 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
     VL(1) printf("Reading SKID format group file.\n");
 
     uint64_t n_groups=0;
-    uint64_t allocd = 0;
     group_t *groups = NULL;
 
     while (!ret && !feof(in))
     {
-        /* Read the whole line */
+        //------------------------------------------------------------------------
+        // Read the whole line but only extract the group id and number of
+        // particles.
+        //------------------------------------------------------------------------
         if (getline(&line, &len, in) <= 0) continue;
-        ERRORIF(line[0] == '#', "Format does not support comments.");
+        if (line[0] == '#') continue;
+        //ERRORIF(line[0] == '#', "%s] Format does not support comments.", tag);
 
-        if (n_groups == allocd)
+        read = sscanf(line, "%ld %ld", &id, &npart);
+
+        if (read <= 0) continue; /* check for EOF at top of loop */
+        if (read != 2) { ret = 3; break; }
+
+        //------------------------------------------------------------------------
+        // If the unbound particles are listed as their own group, skip it.
+        //------------------------------------------------------------------------
+        if (id == 0) continue;
+
+        //------------------------------------------------------------------------
+        // Group ids are not contiguous but we used a contiguous array to store
+        // the group info. Extend this array if we find a group id larger than
+        // the size of the array.
+        //------------------------------------------------------------------------
+        if (id > allocd) 
         {
-            if (allocd == 0) allocd = 32; else allocd *= 2;
-            groups = REALLOC(groups, group_t, allocd+1);
-            ERRORIF(groups == NULL, "No memory for mass list.");
-            MEMSET(groups + n_groups+1, 0, allocd-n_groups, group_t);
+            uint64_t n = allocd;
+            if (n == 0) n = 2048;
+            while (n < id) n *= 2;
+
+            groups = REALLOC(groups, group_t, n+1);
+            ERRORIF(groups == NULL, "%s] No memory for mass list.", tag);
+            MEMSET(groups + allocd+1, 0, n-allocd, group_t);
+
+            for (i=allocd+1; i <= n; i++)
+                groups[i].id = INVALID_GROUP_ID;
+
+            allocd = n;
         }
 
-        n_groups++;
+        if (id > n_groups) n_groups = id;
+        groups[id].id = id;
+        groups[id].npart_stat = npart;
+    }
+
+    //----------------------------------------------------------------------------
+    // Early universe snapshots may not have any groups other that the "unbound"
+    // group 0 so just make sure that we have at least one group.
+    //----------------------------------------------------------------------------
+    if (groups == NULL)
+    {
+        WARNIF(1, "%s] Stat file has no groups.", tag);
+        groups = REALLOC(groups, group_t, 1);
+        ERRORIF(groups == NULL, "%s] No memory for mass list.", tag);
     }
 
     MEMSET(groups, 0, 1, group_t);
+    groups[0].id = 0;
 
     if (line != NULL) free(NULL);
 
