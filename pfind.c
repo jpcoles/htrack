@@ -68,11 +68,15 @@ void help()
 {
     fprintf(stderr, PROGRAM_ID "\n");
     fprintf(stderr, 
-    "Usage: pfind DGRP DSTAT PGRP PSTAT\n"
+    "Usage: pfind [OPTIONS] DGRP DSTAT PGRP PSTAT\n"
     "Find the progenitors (P) of decendent halos (D).\n"
     "\n"
     "    (P|D)GRP           A list of group ids for each particle.\n"
     "    (P|D)STAT          A catalogue of groups.\n"
+    "\n"
+    "OPTIONS can be any of\n"
+    "    -o FILENAME        Write output to FILENAME (default standard out)\n"
+    "    -h, --help         Show this help.\n"
     "\n"
     "Pfind compares two group files from an N-body simulation and determines\n"
     "which particles from group P(rogenitor) end up in group D(escendant).\n"
