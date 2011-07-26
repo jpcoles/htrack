@@ -9,7 +9,7 @@ def help():
     sys.exit(2)
 
 def mkpath(path0, path1, fname):
-    return join(path0, fname) if path is not None else join(path1, fname)
+    return join(path0, fname) if path0 is not None else join(path1, fname)
 
 if __name__ == '__main__':
 
