@@ -11,6 +11,7 @@ typedef struct
 {
     uint64_t id,        /* This group's id                      */
              pid;       /* It's progenitor's id                 */
+    float mass;
     //float Mvir;         /* Mass                       (M_sun/h) */
     //float R;            
     //float r[3];         /* Position                   (Mpc/h)   */
