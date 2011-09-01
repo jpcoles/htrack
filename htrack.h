@@ -14,8 +14,8 @@ typedef struct
     float mass;
     //float Mvir;         /* Mass                       (M_sun/h) */
     //float R;            
-    //float r[3];         /* Position                   (Mpc/h)   */
-    //float v[3];         /* Peculiar velocity          (km/s)    */
+    float r[3];         /* Position                   (Mpc/h)   */
+    float v[3];         /* Peculiar velocity          (km/s)    */
     //float vMax;         /* Maximum of rotation curve. (km/s)    */
     list_t ps;
     list_t belong;

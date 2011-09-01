@@ -242,31 +242,10 @@ int fname(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)      \
     return 0;                                                               \
 }
 
-//============================================================================
-//                             write_pid_matrix
-//============================================================================
-int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
+int write_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks, 
+                 void (*f)(FILE*, group_t*))
 {
-    int i,t,j;
-    fprintf(out, 
-    "# Format:\n"
-    "#     The first line gives the number of tracks that follow and the\n"
-    "#     maximum number of track columns. The total number of columns\n"
-    "#     may be one more that the number of tracks as described below.\n"
-    "#\n"
-    "#     Each subsequent line has the format\n"
-    "#\n"
-    "#         START GID [GID ...]\n"
-    "#\n"
-    "#     where each GID corresponds to an output.\n"
-    "#\n"
-    "#     START is the first track column where a group appears. Some\n"
-    "#     groups may not appear until earlier in time, thus START will\n"
-    "#     be greater than zero.\n"
-    "#\n"
-    "#     GID is the group id in a particular output.\n"
-    "#\n"
-    );
+    int i,t;
 
     fprintf(out, "%i %i\n", n_tracks, n_zs);
     for (t=0; t < n_tracks; t++)
@@ -291,26 +270,65 @@ int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks
                     seen = 1;
                 }
 
-                fprintf(out, "%ld", g->id);
-                if (g->id != 0)
-                {
-                    for (j=0; j < g->belong.len; j++)
-                        fprintf(out, ",%ld", g->belong.v[j]);
-                }
-                fprintf(out, " ");
+                f(out, g);
             }
         }
         fprintf(out, "\n");
     }
     return 0;
+}
+
+//============================================================================
+//                             write_pid_matrix
+//============================================================================
+void write_pid(FILE *out, group_t *g)
+{
+    int j;
+
+    fprintf(out, "%ld", g->id);
+    if (g->id != 0)
+    {
+        for (j=0; j < g->belong.len; j++)
+            fprintf(out, ",%ld", g->belong.v[j]);
+    }
+    fprintf(out, " ");
+}
+
+int write_pid_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
+{
+    fprintf(out, 
+    "# Format:\n"
+    "#     The first line gives the number of tracks that follow and the\n"
+    "#     maximum number of track columns. The total number of columns\n"
+    "#     may be one more that the number of tracks as described below.\n"
+    "#\n"
+    "#     Each subsequent line has the format\n"
+    "#\n"
+    "#         START GID [GID ...]\n"
+    "#\n"
+    "#     where each GID corresponds to an output.\n"
+    "#\n"
+    "#     START is the first track column where a group appears. Some\n"
+    "#     groups may not appear until earlier in time, thus START will\n"
+    "#     be greater than zero.\n"
+    "#\n"
+    "#     GID is the group id in a particular output.\n"
+    "#\n"
+    );
+
+    return write_matrix(out, zs, n_zs, tracks, n_tracks, write_pid);
 }
 
 //============================================================================
 //                             write_mass_matrix
 //============================================================================
+void write_mass(FILE *out, group_t *g)
+{
+    fprintf(out, "%.8g ", g->mass);
+}
+
 int write_mass_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
 {
-    int i,t;
     fprintf(out, 
     "# Format:\n"
     "#     The first line gives the number of tracks that follow and the\n"
@@ -319,58 +337,80 @@ int write_mass_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_track
     "#\n"
     "#     Each subsequent line has the format\n"
     "#\n"
-    "#         START GID [GID ...]\n"
+    "#         START MASS [GID ...]\n"
     "#\n"
-    "#     where each GID corresponds to an output.\n"
+    "#     where each MASS corresponds to an output.\n"
     "#\n"
     "#     START is the first track column where a group appears. Some\n"
     "#     groups may not appear until earlier in time, thus START will\n"
     "#     be greater than zero.\n"
     "#\n"
-    "#     GID is the group id in a particular output.\n"
-    "#\n"
     );
 
-    fprintf(out, "%i %i\n", n_tracks, n_zs);
-    for (t=0; t < n_tracks; t++)
-    {
-        int seen = 0;
-        for (i=0; i < n_zs; i++)
-        {
-            int q = tracks[t].t[i];
-            group_t *g = &zs[i].g[q];
-            if (g->id == INVALID_GROUP_ID)
-            {
-                fprintf(stderr, "# %i %i %i\n", t, i, q);
-                assert(g->id != INVALID_GROUP_ID);
-            }
-
-            if (g->id == 0 && seen) break;
-            if (g->id != 0)
-            {
-                if (!seen)
-                {
-                    fprintf(out, "%i ", i);
-                    seen = 1;
-                }
-
-                fprintf(out, "%.8g ", g->mass);
-            }
-        }
-        fprintf(out, "\n");
-    }
-    return 0;
+    return write_matrix(out, zs, n_zs, tracks, n_tracks, write_mass);
 }
 
 //============================================================================
 //                             write_vmax_matrix
 //============================================================================
-//WRITE_MATRIX(write_vmax_matrix, vMax, "%.3e ")
+void write_v(FILE *out, group_t *g)
+{
+    fprintf(out, "%.8g,%.8g,%.8g ", g->v[0], g->v[1], g->v[2]);
+}
+
+int write_v_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
+{
+    fprintf(out, 
+    "# Format:\n"
+    "#     The first line gives the number of tracks that follow and the\n"
+    "#     maximum number of track columns. The total number of columns\n"
+    "#     may be one more that the number of tracks as described below.\n"
+    "#\n"
+    "#     Each subsequent line has the format\n"
+    "#\n"
+    "#         START vx,vy,vz [vx,vy,vz ...]\n"
+    "#\n"
+    "#     where each vx,vy,vz corresponds to an output.\n"
+    "#\n"
+    "#     START is the first track column where a group appears. Some\n"
+    "#     groups may not appear until earlier in time, thus START will\n"
+    "#     be greater than zero.\n"
+    "#\n"
+    );
+
+    return write_matrix(out, zs, n_zs, tracks, n_tracks, write_v);
+}
 
 //============================================================================
 //                               write_R_matrix
 //============================================================================
-//WRITE_MATRIX(write_R_matrix, R, "%.3e ")
+void write_r(FILE *out, group_t *g)
+{
+    fprintf(out, "%.8g,%.8g,%.8g ", g->r[0], g->r[1], g->r[2]);
+}
+
+int write_r_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks)
+{
+    fprintf(out, 
+    "# Format:\n"
+    "#     The first line gives the number of tracks that follow and the\n"
+    "#     maximum number of track columns. The total number of columns\n"
+    "#     may be one more that the number of tracks as described below.\n"
+    "#\n"
+    "#     Each subsequent line has the format\n"
+    "#\n"
+    "#         START x,y,z [x,y,z ...]\n"
+    "#\n"
+    "#     where each x,y,z corresponds to an output.\n"
+    "#\n"
+    "#     START is the first track column where a group appears. Some\n"
+    "#     groups may not appear until earlier in time, thus START will\n"
+    "#     be greater than zero.\n"
+    "#\n"
+    );
+
+    return write_matrix(out, zs, n_zs, tracks, n_tracks, write_r);
+}
 
 //============================================================================
 //                               calc_R
@@ -584,8 +624,11 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
     group_t *groups = NULL;
     uint64_t id, i;
     uint64_t allocd = 0;
-    uint64_t dummy;
+    uint64_t t0;
+    float t;
     float mass;
+    float x,y,z;
+    float vx,vy,vz;
 
     while (!feof(in))
     {
@@ -593,8 +636,15 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
         read = getline(&line, &len, in);
         if (read <= 0 || line[0] == '#') continue;
 
-        /* Now extract just the id */
-        read = sscanf(line, "%ld %ld %f", &id, &dummy, &mass);
+        //read = sscanf(line, "%ld %ld %f", &id, &dummy, &mass);
+        read = sscanf(line, 
+            "%ld %ld %g %g %g %g %g %g %g %g %g %g %g %g %g %ld %g %g %g %g %g %g %g %g %g\n",
+            &id, &t0, &mass,
+            &t, &t, &t, &t, &t, &t, &t, &t, &t, &t, &t, &t, &t0,
+            &t, &t, &t,
+            &x,&y,&z,
+            &vx,&vy,&vz
+        );
         ERRORIF(read != 1, "Missing columns. Expected at least 1.");
 
         //--------------------------------------------------------------------
@@ -624,6 +674,12 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
         if (id > n_groups) n_groups = id;
         groups[id].id = id;
         groups[id].mass = mass;
+        groups[id].r[0] = x;
+        groups[id].r[1] = y;
+        groups[id].r[2] = z;
+        groups[id].v[0] = vx;
+        groups[id].v[1] = vy;
+        groups[id].v[2] = vz;
         //--------------------------------------------------------------------
         // Group progenitors default to the field.
         //--------------------------------------------------------------------
@@ -977,8 +1033,9 @@ int main(int argc, char **argv)
         {
             case 'i': write_pid_matrix(fp, zs, n_zs, tracks, n_tracks);  break;
             case 'm': write_mass_matrix(fp, zs, n_zs, tracks, n_tracks); break;
+            case 'r': write_r_matrix(fp, zs, n_zs, tracks, n_tracks); break;
+            case 'v': write_v_matrix(fp, zs, n_zs, tracks, n_tracks); break;
 #if 0
-            case 'v': write_vmax_matrix(fp, zs, n_zs, tracks, n_tracks); break;
             case 'r': 
                 calc_R(zs, n_zs, tracks, n_tracks); 
                 write_R_matrix(fp, zs, n_zs, tracks, n_tracks); 
