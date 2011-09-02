@@ -538,6 +538,107 @@ int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
     group_t *groups = NULL;
     uint64_t id, i;
     uint64_t allocd = 0;
+    uint64_t t0;
+    float t;
+    float mass;
+    float x,y,z;
+    float vx,vy,vz;
+
+    while (!feof(in))
+    {
+        /* Read the whole line */
+        read = getline(&line, &len, in);
+        if (read <= 0 || line[0] == '#') continue;
+
+        //read = sscanf(line, "%ld %ld %f", &id, &dummy, &mass);
+        read = sscanf(line, 
+            "%ld %ld %g %g %g %g %g %g %g %g %g %g %g",
+            &id, &t0, &mass, 
+            &t, &t, &t, &t, 
+            &x,&y,&z,
+            &vx,&vy,&vz
+        );
+        ERRORIF(read != 13, "Missing columns. Expected at least 13.");
+
+        //--------------------------------------------------------------------
+        // If the group file lists an "unbounded" group, skip it.
+        //--------------------------------------------------------------------
+        if (id == 0) continue;
+
+        if (id > allocd) 
+        {
+            uint64_t n = allocd;
+            if (n == 0) n = 2048;
+            while (n < id) n *= 2;
+
+            groups = REALLOC(groups, group_t, n+1);
+            ERRORIF(groups == NULL, "No memory for mass list.");
+            MEMSET(groups + allocd+1, 0, n-allocd, group_t);
+
+            for (i=allocd+1; i <= n; i++)
+            {
+                groups[i].id  = INVALID_GROUP_ID;
+                groups[i].pid = INVALID_GROUP_ID;
+            }
+
+            allocd = n;
+        }
+
+        if (id > n_groups) n_groups = id;
+        groups[id].id = id;
+        groups[id].mass = mass;
+        groups[id].r[0] = x;
+        groups[id].r[1] = y;
+        groups[id].r[2] = z;
+        groups[id].v[0] = vx;
+        groups[id].v[1] = vy;
+        groups[id].v[2] = vz;
+        //--------------------------------------------------------------------
+        // Group progenitors default to the field.
+        //--------------------------------------------------------------------
+        groups[id].pid = 0;
+
+#if 0
+        groups[id].R   = 0;
+        groups[id].id  = n_groups;
+        groups[id].pid = 0;
+#endif
+    }
+
+    assert(ferror(in) == 0);
+
+    if (groups == NULL)
+    {
+        WARNIF(1, "Stat file has no groups.");
+        groups = REALLOC(groups, group_t, 1);
+        ERRORIF(groups == NULL, "No memory for mass list.");
+    }
+
+    MEMSET(groups, 0, 1, group_t);
+    groups[0].id   = 0;
+    groups[0].pid  = INVALID_GROUP_ID;
+
+    if (line != NULL) free(NULL);
+
+    *n_groups0 = n_groups;
+    *groups0   = groups;
+
+    return 0;
+}
+#if 0
+int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
+{
+    int read;
+
+    char *line = NULL;
+    size_t len;
+
+    VL(1) printf("Reading 6DFOF format group file.\n");
+
+    uint64_t n_groups=0;
+    group_t *groups = NULL;
+    uint64_t id, i;
+    uint64_t allocd = 0;
 
     while (!feof(in))
     {
@@ -607,6 +708,8 @@ int read_6dfof_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 
     return 0;
 }
+#endif
+
 //
 //============================================================================
 //                              read_skid_groups
