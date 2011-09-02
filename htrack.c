@@ -645,7 +645,7 @@ int read_skid_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
             &x,&y,&z,
             &vx,&vy,&vz
         );
-        ERRORIF(read != 1, "Missing columns. Expected at least 1.");
+        ERRORIF(read != 25, "Missing columns. Expected at least 25.");
 
         //--------------------------------------------------------------------
         // If the group file lists an "unbounded" group, skip it.
