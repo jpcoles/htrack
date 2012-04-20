@@ -17,11 +17,11 @@ if __name__ == '__main__':
 
     for i in xrange(len(files)-1):
         z = i
-        f0 = split(files[i], '.')
-        f1 = split(files[i+1], '.')
+        p0,f0 = os.path.split(files[i])
+        p1,f1 = os.path.split(files[i+1])
 
-        fname0 = '.'.join(f0[:4])
-        fname1 = '.'.join(f1[:4])
+        fname0 = p0 + '.'.join(f0[:4])
+        fname1 = p1 + '.'.join(f1[:4])
 
         path,out = os.path.split(fname1)
 
