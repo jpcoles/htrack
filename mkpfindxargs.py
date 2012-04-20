@@ -29,7 +29,7 @@ if __name__ == '__main__':
         grp1 = '%s/%s' % (p1, '.'.join(f1[:4]))
         stat1 = '%s/%s' % (p1, '.'.join(f1[:-1]))
 
-        path,out = os.path.split(fname1)
+        path,out = os.path.split(grp1)
 
         print '--ahf -o %s.pfind %s.grp %s.AHF_halos %s.grp %s.AHF_halos' % (out,grp0, stat0, grp1, stat1)
 
