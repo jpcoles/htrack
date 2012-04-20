@@ -20,6 +20,9 @@ if __name__ == '__main__':
         p0,f0 = os.path.split(files[i])
         p1,f1 = os.path.split(files[i+1])
 
+        f0 = split(f0, '.')
+        f1 = split(f1, '.')
+
         fname0 = p0 + '.'.join(f0[:4])
         fname1 = p1 + '.'.join(f1[:4])
 
