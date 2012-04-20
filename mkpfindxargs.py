@@ -23,11 +23,14 @@ if __name__ == '__main__':
         f0 = split(f0, '.')
         f1 = split(f1, '.')
 
-        fname0 = p0 + '.'.join(f0[:4])
-        fname1 = p1 + '.'.join(f1[:4])
+        grp0 = '%s/%s' % (p0, '.'.join(f0[:4]))
+        stat0 = '%s/%s' % (p0, '.'.join(f0[:-1]))
+
+        grp1 = '%s/%s' % (p1, '.'.join(f1[:4]))
+        stat1 = '%s/%s' % (p1, '.'.join(f1[:-1]))
 
         path,out = os.path.split(fname1)
 
-        print '--ahf -o %s.pfind %s.grp %s.stat %s.grp %s.stat' % (out,fname0, fname0, fname1, fname1)
+        print '--ahf -o %s.pfind %s.grp %s.AHF_halos %s.grp %s.AHF_halos' % (out,grp0, stat0, grp1, stat1)
 
 
