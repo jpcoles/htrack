@@ -40,14 +40,14 @@ if __name__ == '__main__':
         z = i
         path,fname = split(files[i])
         fname,ext = splitext(fname)
-        if ext == '.stat':
+        if ext == '.AHF_halos':
             pfind = mkpath(dir, path, fname+'.pfind')
             stat  = files[i]
         elif ext == '.pfind':
             pfind = files[i]
-            stat  = mkpath(statdir, path, fname+'.stat')
+            stat  = mkpath(statdir, path, fname+'.AHF_halos')
         else:
             pfind = mkpath(dir, path, fname+'.pfind')
-            stat  = mkpath(statdir, path, fname+'.stat')
+            stat  = mkpath(statdir, path, fname+'.AHF_halos')
 
         print z,stat,pfind

@@ -101,8 +101,8 @@ int D_mass_cmp(const void *a0, const void *b0)
     if (a->id == 0) return -1;
     if (b->id == 0) return 1;
 
-    if (a->npart > b->npart) return -1;
-    if (a->npart < b->npart) return +1;
+    if (a->npart_stat > b->npart_stat) return -1;
+    if (a->npart_stat < b->npart_stat) return +1;
     return 0;
 }
 
@@ -194,10 +194,16 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
     );
     forall_groups(i, g, groups, n_groups)
     {
-        //fprintf(out, "  %12ld  ", groups[i].id);
+        fprintf(out, "  %12ld  ", groups[i].id);
         //fprintf(out, "  %12ld(%ld)  ", groups[i].id, groups[i].npart);
 
+#if 0
+        if (g->belong.len == 0)
+        {
+            fprintf(stderr, "Group %ld doesn't belong!\n", i);
+        }
         assert(g->belong.len != 0);
+
 
         //--------------------------------------------------------------------
         // Group id (and belonging id's)
@@ -206,6 +212,7 @@ int write_output_ascii(FILE *out, group_t *groups, uint64_t n_groups)
         for (j=1; j < g->belong.len; j++)
             fprintf(out, ",%ld", g->belong.v[j]);
         fprintf(out, " ");
+#endif
 
         //--------------------------------------------------------------------
         // Number of progenitors
@@ -363,6 +370,7 @@ int build_prog_list(FILE *fpD, FILE *fpP,
         D->pfrac.v[i]++;
     }
 
+#if 0
     //------------------------------------------------------------------------
     // Check that a group that has been mentioned in the stat file is in the
     // group file and vice versa. If there is a mismatch then the number of
@@ -393,6 +401,7 @@ int build_prog_list(FILE *fpD, FILE *fpP,
         WARNIF(g->npart != g->npart_stat, "%s] GroupP %ld has %ld particles but stat file says %ld.",
             tag, id, g->npart, g->npart_stat);
     }
+#endif
 
     return 0;
 }
