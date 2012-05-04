@@ -440,8 +440,8 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 
         n_groups++;
 
-        groups[n_groups].id    = n_groups;
-        groups[n_groups].npart = npart;
+        groups[n_groups].id         = n_groups;
+        groups[n_groups].npart_stat = npart;
     }
 
     if (groups == NULL)

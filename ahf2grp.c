@@ -20,7 +20,7 @@ const int debug_level = 0;
 //============================================================================
 void help()
 {
-    fprintf(stderr, "Usage: ahf2grp [-b] [-o grp-output] <#Particles> <AHF_particles>\n");
+    fprintf(stderr, "Usage: ahf2grp [--multi-type] [-b] [-o grp-output] <#Dark matter particles> <AHF_particles>\n");
     exit(2);
 }
 
@@ -30,6 +30,7 @@ void help()
 int main(int argc, char **argv)
 {
     int belong  = 0;
+    int multi   = 0;
     size_t nParticles=0;
     FILE *in  = stdin, 
          *out = stdout;
@@ -49,6 +50,7 @@ int main(int argc, char **argv)
         static struct option long_options[] = {
            {"help", 1, 0, 'h'},
            {"belong", 1, 0, 'b'},
+           {"multi-type", 1, 0, 0},
            {0, 0, 0, 0}
         };
 
@@ -56,7 +58,12 @@ int main(int argc, char **argv)
         if (c == -1)
            break;
 
+
         switch (c) {
+            case 0:
+                if (!strcmp("multi-type", long_options[option_index].name))
+                    multi = 1;
+                break;
             case 'h':
                 help();
                 break;
@@ -121,22 +128,12 @@ int main(int argc, char **argv)
             line++;
             gid++;
 
-            if (gid == 37)
-            {
-                fprintf(stderr, "Group 37 begins on line %i\n", line);
-            }
-
             //================================================================
             // We keep track of how many particles are actually in a given
             // group and have not sunk to lower groups. First, assume all
             // particles of this new group will not sink.
             //================================================================
             list_append(&gcount, nGrpParticles);
-
-#if 0
-            if (gid == 459) fprintf(stderr, "Group %i starts on line %i\n", gid, line);
-            if (gid == 464) fprintf(stderr, "Group %i starts on line %i\n", gid, line);
-#endif
 
             if (nGrpParticles == 0)
             {
@@ -156,6 +153,8 @@ int main(int argc, char **argv)
                 {
                     if (! (0 <= pid && pid < nParticles) )
                     {
+                        if (multi) continue;
+
                         fprintf(stderr, "ERROR: %s\n"
                                         "ERROR: Particle has bad id %i on line %i.\n", 
                                         inname, pid, line);
@@ -198,7 +197,7 @@ int main(int argc, char **argv)
         if (gcount.v[j] == 0)
         {
             fprintf(stderr, "WARNING: %s\n"
-                            "WARNING: Group %i has no more particles!\n", 
+                            "WARNING: All particles from group %i also belonged to a subgroup!\n", 
                             inname, j);
         }
     }
