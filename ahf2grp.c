@@ -22,6 +22,9 @@ const int debug_level = 0;
 #define D 1
 #define S 2
 
+#define AHFv0 0
+#define AHFv1 1
+
 struct tipsy_header
 {
     double h_time;
@@ -51,7 +54,29 @@ struct order
 //============================================================================
 void help()
 {
-    fprintf(stderr, "Usage: ahf2grp [--dm-grp] [-b] [-o grp-output] --tipsy-file=<file> <.AHF_particles>\n");
+    fprintf(stderr, 
+        "Usage: ahf2grp [OPTIONS] --tipsy-file=<file> <.AHF_particles>\n"
+        "\n"
+        "    --tipsy-file           The tipsy file from which to extract the number of particles.\n"
+        "    .AHF_particles         The AHF file giving the particles in each group\n"
+        "\n"
+        "OPTIONS can be\n"
+        "\n"
+        "    --dm-grp               Create a group file with only the dark matter particles.\n"
+        "    --iord=[ahf|tipsy]     Specify the input particle order as ahf or tipsy order.\n"
+        "                           AHF uses dark,star,gas  and  TIPSY uses gas,dark,star\n"
+        "                           The default is ahf.\n"
+        "    --oord=[ahf|tipsy]     Specify the output ordering. The default is the same as iord.\n"
+        "    --ahf-version=[0|1]    Specify AHF_particles file format. The default is 1.\n"
+        "                           Version 0 does not list the number of groups at the beginning\n"
+        "                           and does not include the particle type in the second column.\n"
+        "    --do-nothing           Open the tipsy file and print some information, but do\n"
+        "                           not read the particle file or create the group file.\n"
+        "    --help                 Show this help screen.\n"
+
+
+    );
+
     exit(2);
 }
 
@@ -109,8 +134,8 @@ struct order *particle_order(char *type, struct tipsy_header *h)
                                     {"star", S, h->h_nStar} };
 
     struct types ahf_types[3] = { {"dark", D, h->h_nDark},
-                                  {"gas", G, h->h_nGas},
-                                  {"star", S, h->h_nStar} };
+                                  {"star", S, h->h_nStar},
+                                  {"gas", G, h->h_nGas} };
     struct types *t;
 
     if (!strcmp("tipsy", type))
@@ -141,11 +166,13 @@ struct order *particle_order(char *type, struct tipsy_header *h)
             strcpy(ord->t[j].name, t[i].name);
             ord->t[j].type = t[i].type;
             ord->t[j].min_id = prev_max_id + 1;
-            ord->t[j].max_id = t[i].N-1;
+            ord->t[j].max_id = ord->t[j].min_id + t[i].N - 1;
             prev_max_id = ord->t[j].max_id;
             j++;
         }
     }
+
+    assert(prev_max_id == h->h_nBodies-1);
 
     return ord;
 }
@@ -171,6 +198,7 @@ int main(int argc, char **argv)
     struct order *iord = NULL;
     struct order *oord = NULL;
     int do_nothing = 0;
+    int ahf_version = AHFv1;
 
     //========================================================================
     // Process command line arguments.
@@ -184,12 +212,13 @@ int main(int argc, char **argv)
         int option_index = 0;
         static struct option long_options[] = {
            {"help", 1, 0, 'h'},
-           {"belong", 1, 0, 'b'},
+//         {"belong", 1, 0, 'b'},
            {"dm-grp", 0, 0, 0},
            {"tipsy-file", 1, 0, 0},
            {"iord", 1, 0, 0},
            {"oord", 1, 0, 0},
            {"do-nothing", 0, 0, 0},
+           {"ahf-version", 0, 0, 0},
            {0, 0, 0, 0}
         };
 
@@ -210,15 +239,23 @@ int main(int argc, char **argv)
                     oordstr = optarg;
                 if (!strcmp("do-nothing", long_options[option_index].name))
                     do_nothing = 1;
+                if (!strcmp("ahf-version", long_options[option_index].name))
+                {
+                    if (!strcmp("0", optarg)) ahf_version = AHFv0;
+                    if (!strcmp("1", optarg)) ahf_version = AHFv1;
+                }
                 break;
             case 'h':
                 help();
                 break;
-            case 'b':
-                belong = 1;
-                break;
+//          case 'b':
+//              belong = 1;
+//              break;
             case 'o':
                 outname = optarg;
+                break;
+            default:
+                help();
                 break;
         }
     }
@@ -229,20 +266,8 @@ int main(int argc, char **argv)
     if (argc-optind < 1) help();
 
 
-
-    if (iordstr == NULL && oordstr == NULL)
-    {
-        iordstr = "ahf";
-        oordstr = "ahf";
-    }
-    else if (iordstr != NULL && oordstr == NULL)
-    {
-        oordstr = iordstr;
-    }
-    else if (iordstr == NULL && oordstr != NULL)
-    {
-        iordstr = oordstr;
-    }
+    if (iordstr == NULL) iordstr = "ahf";
+    if (oordstr == NULL) oordstr = iordstr;
 
     read_tipsy_header(tipsyname, &h);
 
@@ -276,7 +301,7 @@ int main(int argc, char **argv)
 
     if (dm_grp)
     {
-        fprintf(stderr, "Taking only dark matter particles\n.");
+        fprintf(stderr, "Taking only dark matter particles.\n");
         nParticles = h.h_nDark;
     }
 
@@ -319,12 +344,15 @@ int main(int argc, char **argv)
     list_t gcount = EMPTY_LIST;
     list_append(&gcount, 0);  // Because gid's begin at 1 we need something at 0
 
-    if (getline(&linestr, &line_len, in) < 0)
+    if (ahf_version >= AHFv1)
     {
-        fprintf(stderr, "Couldn't read first line of %s.\n", inname);
-        exit(1);
+        if (getline(&linestr, &line_len, in) < 0)
+        {
+            fprintf(stderr, "Couldn't read first line of %s.\n", inname);
+            exit(1);
+        }
+        line++;
     }
-    line++;
 
     long min_id=0x0fffffff, max_id=0;
 
@@ -357,14 +385,16 @@ int main(int argc, char **argv)
                 exit(1);
             }
 
-            if (gid == 18)
-            {
-                fprintf(stderr, "Group %i. Should have %i particles\n", gid, nGrpParticles);
-            }
+//          if (gid == 11)
+//          {
+//              fprintf(stderr, "Group %i. Should have %i particles\n", gid, nGrpParticles);
+//          }
 
             //================================================================
             // Read in each of those particle ids.
             //================================================================
+            long pid0;
+            int ahf_type;
             for (i=0; i < nGrpParticles; i++)
             {
                 line++;
@@ -373,10 +403,22 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Unexpected EOF in %s.\n", inname);
                     exit(1);
                 }
-                if (sscanf(linestr, "%ld", &pid) >= 1)
+
+                int nitems;
+                
+                if (ahf_version >= AHFv1)
                 {
-                    if (pid < min_id) min_id = pid;
-                    if (pid > max_id) max_id = pid;
+                    nitems = sscanf(linestr, "%ld %i", &pid, &ahf_type);
+                    assert(nitems >= 2);
+                }
+                else
+                {
+                    nitems = sscanf(linestr, "%ld", &pid);
+                }
+
+                if (nitems >= 1)
+                {
+                    pid0 = pid;
 
                     // Find which type and range the pid belongs to in the input.
                     for (j=0; j < iord->len; j++)
@@ -404,6 +446,27 @@ int main(int argc, char **argv)
                         exit(1);
                     }
 
+//                  if (ahf_type == 4) 
+//                  {
+//                      if (iord->t[j].type != S)
+//                      {
+//                          fprintf(stderr, "?? %i %i %i [%ld %ld] pid %ld\n", j, iord->t[j].type, ahf_type, iord->t[j].min_id, iord->t[j].max_id, pid);
+//                      }
+//                  }
+
+                    if (ahf_version >= AHFv1)
+                    {
+                        if (ahf_type == 0) assert(iord->t[j].type == G);
+                        if (ahf_type == 1) assert(iord->t[j].type == D);
+                        if (ahf_type == 4) assert(iord->t[j].type == S);
+                    }
+
+                    if (iord->t[j].type == D)
+                    {
+                        if (pid < min_id) min_id = pid;
+                        if (pid > max_id) max_id = pid;
+                    }
+
                     if (dm_grp && iord->t[j].type != D)
                     {
                         continue;
@@ -422,8 +485,8 @@ int main(int argc, char **argv)
         }
     }
 
-    fprintf(stderr, "Group %i. Had %ld particles\n", 18, gcount.v[18]);
-    fprintf(stderr, "AHF id range %ld, %ld\n", min_id, max_id);
+    //fprintf(stderr, "Group %i. Had %ld particles\n", 11, gcount.v[11]);
+    //fprintf(stderr, "AHF id range %ld, %ld\n", min_id, max_id);
 
     //========================================================================
     //========================================================================
