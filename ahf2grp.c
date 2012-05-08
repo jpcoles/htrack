@@ -74,8 +74,6 @@ void help()
         "    --do-nothing           Open the tipsy file and print some information, but do\n"
         "                           not read the particle file or create the group file.\n"
         "    --help                 Show this help screen.\n"
-
-
     );
 
     exit(2);
@@ -420,9 +418,6 @@ int main(int argc, char **argv)
                 if (nitems >= 1)
                 {
                     pid0 = pid;
-
-                    if (pid == 515651)
-                        fprintf(stderr, "Particle %ld is in group %i\n", pid, gid);
 
                     // Find which type and range the pid belongs to in the input.
                     for (j=0; j < iord->len; j++)
