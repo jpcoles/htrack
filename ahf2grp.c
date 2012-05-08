@@ -62,6 +62,7 @@ void help()
         "\n"
         "OPTIONS can be\n"
         "\n"
+        "    -o OUTPUT              Write the output to OUTPUT. Default is the screen.\n"
         "    --dm-grp               Create a group file with only the dark matter particles.\n"
         "    --iord=[ahf|tipsy]     Specify the input particle order as ahf or tipsy order.\n"
         "                           AHF uses dark,star,gas  and  TIPSY uses gas,dark,star\n"
