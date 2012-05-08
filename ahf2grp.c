@@ -421,6 +421,9 @@ int main(int argc, char **argv)
                 {
                     pid0 = pid;
 
+                    if (pid == 515651)
+                        fprintf(stderr, "Particle %ld is in group %i\n", pid, gid);
+
                     // Find which type and range the pid belongs to in the input.
                     for (j=0; j < iord->len; j++)
                     {
