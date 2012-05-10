@@ -217,7 +217,7 @@ int main(int argc, char **argv)
            {"iord", 1, 0, 0},
            {"oord", 1, 0, 0},
            {"do-nothing", 0, 0, 0},
-           {"ahf-version", 0, 0, 0},
+           {"ahf-version", 1, 0, 0},
            {0, 0, 0, 0}
         };
 
