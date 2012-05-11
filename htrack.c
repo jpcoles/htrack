@@ -240,10 +240,12 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
 
     for (i=0; i < D->n_groups; i++)
     {
-        fprintf(stderr, "copying group %i\n", i);
+        fprintf(stderr, "copying group %ld (%i)\n", D->g[i].pid, i);
 
         if (D->g[i].pid > n_groups)
             n_groups = D->g[i].pid;
+
+        fprintf(stderr, "n_groups is %ld\n", n_groups);
 
         if (n_groups >= allocd)
         {
