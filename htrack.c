@@ -161,7 +161,7 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
     size_t allocd_guess = 1<<20;
 
     int i,j,k;                                                                      
-    uint64_t next, prev;
+    uint64_t curr, prev;
     int cur_track=0;                                                           
 
     z_t *Z = zs;
@@ -194,25 +194,27 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
             tracks[cur_track].t = CALLOC(uint64_t, n_zs);
 
             z_t *Zt = Z;
-            next    = Zt->g[j].id;
-            prev    = next;
+            curr    = Zt->g[j].id;
+            prev    = curr;
 
-            for (i=k; next != 0; Zt++, i++)
+            ERRORIF(curr == 0, "Track %i shouldn't begin with a field particle. k=%i j=%i\n", cur_track, k,j);
+
+            for (i=k; curr != 0; Zt++, i++)
             {
-                //if (j == 16836) eprintf("-> %ld\n", next);
-                //if (next == INVALID_GROUP_ID) break;
-                //if (next == 0) break;
+                //if (j == 16836) eprintf("-> %ld\n", curr);
+                //if (curr == INVALID_GROUP_ID) break;
+                //if (curr == 0) break;
 
-                //eprintf("%i %i/%i %i %i %ld\n", k, j, Z->n_groups, i, cur_track, next);
-                //eprintf("%i %i %i %i %ld\n", k, j, i, cur_track, next);
-                //assert(next != INVALID_GROUP_ID);
-                ERRORIF(next == INVALID_GROUP_ID, "%i %i %ld %i", k, j, prev, i);
+                //eprintf("%i %i/%i %i %i %ld\n", k, j, Z->n_groups, i, cur_track, curr);
+                //eprintf("%i %i %i %i %ld\n", k, j, i, cur_track, curr);
+                //assert(curr != INVALID_GROUP_ID);
+                ERRORIF(curr == INVALID_GROUP_ID, "%i %i %ld %i", k, j, prev, i);
 
-                tracks[cur_track].t[i] = next;
+                tracks[cur_track].t[i] = curr;
 
-                Zt->used[next] = 1;
-                prev = next;
-                next = Zt->g[next].pid;
+                Zt->used[curr] = 1;
+                prev = curr;
+                curr = Zt->g[curr].pid;
             }
 
             cur_track++;
@@ -257,6 +259,14 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
         groups[D->g[i].pid].id  = D->g[i].pid;
         groups[D->g[i].pid].pid = 0;
     }
+
+    // The list of progenitors is not necessarily consecutive so we 
+    // fill in the empty spots with invalid group ids. These should
+    // not be accessed and there is a possibility that build_tracks
+    // will try to.
+    for (i=0; i < n_groups; i++)
+        if (groups[i].id == 0)
+            groups[i].id = INVALID_GROUP_ID;
 
     if (n_groups > 0)
     {
