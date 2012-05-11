@@ -191,7 +191,7 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
             }
 
 
-            tracks[cur_track].t = CALLOC(uint64_t, n_zs);
+            tracks[cur_track].t = CALLOC(uint64_t, n_zs+1);
 
             z_t *Zt = Z;
             next    = Zt->g[j].id;
@@ -209,6 +209,8 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
                 ERRORIF(next == INVALID_GROUP_ID, "%i %i %ld %i", k, j, prev, i);
 
                 tracks[cur_track].t[i] = next;
+                if (i == n_zs) break;
+
                 Zt->used[next] = 1;
                 prev = next;
                 next = Zt->g[next].pid;
@@ -247,11 +249,11 @@ int write_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks,
 {
     int i,t;
 
-    fprintf(out, "%i %i\n", n_tracks, n_zs);
+    fprintf(out, "%i %i\n", n_tracks, n_zs+1);
     for (t=0; t < n_tracks; t++)
     {
         int seen = 0;
-        for (i=0; i < n_zs; i++)
+        for (i=0; i < n_zs+1; i++)
         {
             int q = tracks[t].t[i];
             group_t *g = &zs[i].g[q];
