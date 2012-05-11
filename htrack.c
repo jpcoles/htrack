@@ -238,20 +238,24 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
 
     for (i=0; i < D->n_groups; i++)
     {
-        if (n_groups == allocd)
+        if (D->g[i].pid > n_groups)
+            n_groups = D->g[i].pid;
+
+        if (n_groups >= allocd)
         {
-            if (allocd == 0) allocd = 32;
-            else allocd *= 2;
+            do
+            {
+                if (allocd == 0) allocd = 32;
+                else allocd *= 2;
+            } while (n_groups >= allocd);
 
             groups = REALLOC(groups, group_t, allocd+1);
             ERRORIF(groups == NULL, "No memory for groups.");
             memset(groups + n_groups+1, 0, (allocd-n_groups) * sizeof(group_t));
         }
 
-        n_groups++;
-
-        groups[n_groups].id  = D->g[i].pid;
-        groups[n_groups].pid = 0;
+        groups[D->g[i].pid].id  = D->g[i].pid;
+        groups[D->g[i].pid].pid = 0;
     }
 
     if (n_groups > 0)
