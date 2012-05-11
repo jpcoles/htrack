@@ -191,7 +191,7 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
             }
 
 
-            tracks[cur_track].t = CALLOC(uint64_t, n_zs+1);
+            tracks[cur_track].t = CALLOC(uint64_t, n_zs);
 
             z_t *Zt = Z;
             next    = Zt->g[j].id;
@@ -209,7 +209,6 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
                 ERRORIF(next == INVALID_GROUP_ID, "%i %i %ld %i", k, j, prev, i);
 
                 tracks[cur_track].t[i] = next;
-                if (i == n_zs) break;
 
                 Zt->used[next] = 1;
                 prev = next;
@@ -226,6 +225,47 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 
     return 0;
 }
+
+//============================================================================
+//                              progenitor_groups
+//============================================================================
+int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
+{
+    int i;
+    uint64_t n_groups=0;
+    uint64_t allocd = 0;
+    group_t *groups = NULL;
+
+    for (i=0; i < D->n_groups; i++)
+    {
+        if (n_groups == allocd)
+        {
+            if (allocd == 0) allocd = 32;
+            else allocd *= 2;
+
+            groups = REALLOC(groups, group_t, allocd+1);
+            ERRORIF(groups == NULL, "No memory for groups.");
+            memset(groups + n_groups+1, 0, (allocd-n_groups) * sizeof(group_t));
+        }
+
+        n_groups++;
+
+        groups[n_groups].id  = D->g[i].pid;
+        groups[n_groups].pid = 0;
+    }
+
+    if (n_groups > 0)
+    {
+        groups[0].id   = 0;
+        groups[0].pid  = INVALID_GROUP_ID;
+    }
+
+    *n_groups0 = n_groups;
+    *groups0   = groups;
+
+    return 0;
+}
+
 
 //============================================================================
 //                                WRITE_MATRIX
@@ -249,11 +289,11 @@ int write_matrix(FILE *out, z_t *zs, int n_zs, track_t *tracks, int n_tracks,
 {
     int i,t;
 
-    fprintf(out, "%i %i\n", n_tracks, n_zs+1);
+    fprintf(out, "%i %i\n", n_tracks, n_zs);
     for (t=0; t < n_tracks; t++)
     {
         int seen = 0;
-        for (i=0; i < n_zs+1; i++)
+        for (i=0; i < n_zs; i++)
         {
             int q = tracks[t].t[i];
             group_t *g = &zs[i].g[q];
@@ -907,7 +947,7 @@ void help()
 //============================================================================
 int main(int argc, char **argv)
 {
-    int i,j;
+    int i;
     group_t *D = NULL;
     uint64_t nD = 0;
 
@@ -1040,8 +1080,8 @@ int main(int argc, char **argv)
 
 
     //work_len = 10;
-    zs = MALLOC(z_t, work_len);
-    n_zs = work_len;
+    n_zs = work_len+1;
+    zs = MALLOC(z_t, n_zs);
 
     z_t *Z = zs;
 
@@ -1075,15 +1115,6 @@ int main(int argc, char **argv)
         Z->used     = CALLOC(int, nD+1); assert(Z->used != NULL);
         //--------------------------------------------------------------------
 
-        //eprintf("nD=%ld\n", nD);
-
-        if (i == work_len-1)
-        {
-            //eprintf("HERE\n");
-            for (j=0; j <= Z->n_groups; j++) Z->g[j].pid = 0;
-            continue;
-        }
-
         if (Z->n_groups > 0)
         {
             ERRORIF((pf_fp = fopen(pf, "r")) == NULL, "Can't open %s.", pf);
@@ -1093,6 +1124,11 @@ int main(int argc, char **argv)
             fclose(pf_fp);
         }
     }
+
+    progenitor_groups(&zs[n_zs-2], &D, &nD);
+    zs[n_zs-1].n_groups = nD;
+    zs[n_zs-1].g = D;
+    zs[n_zs-1].used = CALLOC(int, nD+1); assert(zs[n_zs-1].used != NULL);
 
     track_t *tracks;
     uint64_t n_tracks;
