@@ -191,6 +191,7 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
             }
 
 
+            tracks[cur_track].id = cur_track;
             tracks[cur_track].t = CALLOC(uint64_t, n_zs);
 
             tracks[cur_track].first_id = Z->g[j].id;
@@ -1225,12 +1226,17 @@ int main(int argc, char **argv)
     else
         sprintf(fname, "%c.htrack", 'M');
     WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+    //fprintf(fp, "");
     int j;
     for (i=0; i < n_tracks; i++)
     {
-        if (tracks[i].first_z > 0 && tracks[i].merged_with.len)
+        if (tracks[i].first_z == 0)
         {
-            fprintf(fp, "%ld  %ld --> ", tracks[i].first_z-1, tracks[i].first_id);
+            fprintf(fp, "-\n");
+        }
+        else if (tracks[i].first_z > 0 && tracks[i].merged_with.len)
+        {
+            fprintf(fp, "@ %ld  %ld --> ", tracks[i].first_z-1, tracks[i].first_id);
 
             for (j=0; j < tracks[i].merged_with.len; j++)
             {
