@@ -236,16 +236,10 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
     uint64_t allocd = 0;
     group_t *groups = NULL;
 
-    fprintf(stderr, "BEGIN progenitor_groups\n");
-
     for (i=1; i < D->n_groups; i++)
     {
-        fprintf(stderr, "copying group %ld (%i)\n", D->g[i].pid, i);
-
         if (D->g[i].pid > n_groups)
             n_groups = D->g[i].pid;
-
-        fprintf(stderr, "n_groups is %ld\n", n_groups);
 
         if (n_groups >= allocd)
         {
@@ -269,8 +263,6 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
         groups[0].id   = 0;
         groups[0].pid  = INVALID_GROUP_ID;
     }
-
-    fprintf(stderr, "END progenitor_groups\n");
 
     *n_groups0 = n_groups;
     *groups0   = groups;
