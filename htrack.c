@@ -238,7 +238,7 @@ int progenitor_groups(z_t *D, group_t **groups0, uint64_t *n_groups0)
 
     fprintf(stderr, "BEGIN progenitor_groups\n");
 
-    for (i=0; i < D->n_groups; i++)
+    for (i=1; i < D->n_groups; i++)
     {
         fprintf(stderr, "copying group %ld (%i)\n", D->g[i].pid, i);
 
