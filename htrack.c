@@ -160,9 +160,9 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
     size_t allocd = 0;
     size_t allocd_guess = 1<<20;
 
-    int i,j,k;                                                                      
+    int i,j,k,l;
     uint64_t curr, prev;
-    int cur_track=0;                                                           
+    int cur_track=0;
 
     z_t *Z = zs;
 
@@ -193,11 +193,28 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 
             tracks[cur_track].t = CALLOC(uint64_t, n_zs);
 
+            tracks[cur_track].first_id = Z->g[j].id;
+            tracks[cur_track].first_z  = k;
+
             z_t *Zt = Z;
             curr    = Zt->g[j].id;
             prev    = curr;
 
             ERRORIF(curr == 0, "Track %i shouldn't begin with a field particle. k=%i j=%i\n", cur_track, k,j);
+
+            if (k != 0)
+            {
+                tracks[cur_track].merged_at = k-1;
+                for (i=1; i <= (Z-1)->n_groups; i++)
+                {
+                    group_t *d = &(Z-1)->g[i];
+                    for (l=0; l < d->ps.len; l++)
+                    {
+                        if (d->ps.v[l] == curr)
+                            list_append(&tracks[cur_track].merged_with, d->id);
+                    }
+                }
+            }
 
             for (i=k; curr != 0; Zt++, i++)
             {
@@ -1179,7 +1196,8 @@ int main(int argc, char **argv)
                         sprintf(fname, "%s.%c.htrack", prefix, *what);
                     else
                         sprintf(fname, "%c.htrack", *what);
-                    ERRORIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+                    WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+                    continue;
                     break;
             }
         }
@@ -1201,6 +1219,26 @@ int main(int argc, char **argv)
         if (fp != stdout) fclose(fp);
     }
 
+
+    if (prefix != NULL)
+        sprintf(fname, "%s.%c.htrack", prefix, 'M');
+    else
+        sprintf(fname, "%c.htrack", 'M');
+    WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
+    int j;
+    for (i=0; i < n_tracks; i++)
+    {
+        if (tracks[i].first_z > 0 && tracks[i].merged_with.len)
+        {
+            fprintf(fp, "%ld  %ld --> ", tracks[i].first_z-1, tracks[i].first_id);
+
+            for (j=0; j < tracks[i].merged_with.len; j++)
+            {
+                fprintf(fp, " %ld", tracks[i].merged_with.v[j]);
+            }
+            fprintf(fp, "\n");
+        }
+    }
     return 0;
 }
 

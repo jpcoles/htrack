@@ -44,6 +44,10 @@ typedef struct
 {
     uint64_t id;
     uint64_t *t;
+    uint64_t first_id;
+    uint64_t first_z;
+    uint32_t merged_at;
+    list_t merged_with;
 } track_t;
 
 #endif
