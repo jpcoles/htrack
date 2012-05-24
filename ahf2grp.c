@@ -515,7 +515,7 @@ int main(int argc, char **argv)
         }
     }
 
-    fprintf(stderr, "%ld groups found.\n", gcount.len);
+    fprintf(stderr, "%ld groups found (including the field).\n", gcount.len);
 
     fprintf(stderr, "Writing output to %s...\n", outname);
 
