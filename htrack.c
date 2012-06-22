@@ -10,6 +10,7 @@
 #include "jpcmacros.h"
 #include "getline.h"
 
+#define ALL_OUTPUTS                 "ivmrM"
 #define DELIM                       " \n\r"
 
 #define INVALID_GROUP_ID            ULONG_MAX
@@ -979,7 +980,7 @@ void help()
 //============================================================================
 int main(int argc, char **argv)
 {
-    int i;
+    int i,j;
     group_t *D = NULL;
     uint64_t nD = 0;
 
@@ -987,7 +988,7 @@ int main(int argc, char **argv)
 
     char *infile = NULL;
     char *prefix = NULL;
-    char *what = "ivmr";
+    char *what = ALL_OUTPUTS;
     FILE *in = stdin;
 
     int format = FMT_AHF;
@@ -1041,7 +1042,7 @@ int main(int argc, char **argv)
                 {
                     if (optarg[i] == 'a')
                     {
-                        what = "ivmr";
+                        what = ALL_OUTPUTS;
                         break;
                     }
 
@@ -1197,8 +1198,9 @@ int main(int argc, char **argv)
                         sprintf(fname, "%s.%c.htrack", prefix, *what);
                     else
                         sprintf(fname, "%c.htrack", *what);
-                    WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
-                    continue;
+                    fp = fopen(fname, "w");
+                    WARNIF((fp == NULL), "Can't open %s for writing. Skipping.", fname);
+                    if (fp == NULL) continue;
                     break;
             }
         }
@@ -1209,6 +1211,25 @@ int main(int argc, char **argv)
             case 'm': write_mass_matrix(fp, zs, n_zs, tracks, n_tracks); break;
             case 'r': write_r_matrix(fp, zs, n_zs, tracks, n_tracks); break;
             case 'v': write_v_matrix(fp, zs, n_zs, tracks, n_tracks); break;
+            case 'M':
+                for (i=0; i < n_tracks; i++)
+                {
+                    if (tracks[i].first_z == 0)
+                    {
+                        fprintf(fp, "-\n");
+                    }
+                    else if (tracks[i].first_z > 0 && tracks[i].merged_with.len)
+                    {
+                        fprintf(fp, "@ %ld  %ld --> ", tracks[i].first_z-1, tracks[i].first_id);
+
+                        for (j=0; j < tracks[i].merged_with.len; j++)
+                        {
+                            fprintf(fp, " %ld", tracks[i].merged_with.v[j]);
+                        }
+                        fprintf(fp, "\n");
+                    }
+                }
+                break;
 #if 0
             case 'r': 
                 calc_R(zs, n_zs, tracks, n_tracks); 
@@ -1221,30 +1242,14 @@ int main(int argc, char **argv)
     }
 
 
+#if 0
     if (prefix != NULL)
         sprintf(fname, "%s.%c.htrack", prefix, 'M');
     else
         sprintf(fname, "%c.htrack", 'M');
     WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
     //fprintf(fp, "");
-    int j;
-    for (i=0; i < n_tracks; i++)
-    {
-        if (tracks[i].first_z == 0)
-        {
-            fprintf(fp, "-\n");
-        }
-        else if (tracks[i].first_z > 0 && tracks[i].merged_with.len)
-        {
-            fprintf(fp, "@ %ld  %ld --> ", tracks[i].first_z-1, tracks[i].first_id);
-
-            for (j=0; j < tracks[i].merged_with.len; j++)
-            {
-                fprintf(fp, " %ld", tracks[i].merged_with.v[j]);
-            }
-            fprintf(fp, "\n");
-        }
-    }
+#endif
     return 0;
 }
 
