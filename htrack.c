@@ -1195,6 +1195,7 @@ int main(int argc, char **argv)
                 case 'r':
                 case 'v':
                 case 'i':
+                case 'M':
                     if (prefix != NULL)
                         sprintf(fname, "%s.%c.htrack", prefix, *what);
                     else
