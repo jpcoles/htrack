@@ -956,6 +956,7 @@ void help()
     "                                     'v' means vmax,\n"
     "                                     'm' means mass,\n"
     "                                     'r' means position relative to halo 1,\n"
+    "                                     'M' means merger tree,\n"
     "                               and   'a' means all of the above.\n"
     "  -o, --output-prefix=PREFIX   Output files will be labeled with PREFIX.\n"
     "                               The default is 'htrack'.\n"
