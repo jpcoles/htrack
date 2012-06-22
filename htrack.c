@@ -906,7 +906,7 @@ int read_work(FILE *in, work_t **work0, int *work_len0)
     for (i=0; !feof(in); i++)
     {
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
-        fprintf(stderr, line);
+        fprintf(stderr, "%s", line);
 
         if (i == allocd)
         {
@@ -1239,18 +1239,9 @@ int main(int argc, char **argv)
 #endif
         }
 
-        if (fp != stdout) fclose(fp);
+        if (fp != NULL && fp != stdout) fclose(fp);
     }
 
-
-#if 0
-    if (prefix != NULL)
-        sprintf(fname, "%s.%c.htrack", prefix, 'M');
-    else
-        sprintf(fname, "%c.htrack", 'M');
-    WARNIF((fp = fopen(fname, "w")) == NULL, "Can't open %s for writing. Skipping.", fname);
-    //fprintf(fp, "");
-#endif
     return 0;
 }
 
