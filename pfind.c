@@ -413,6 +413,8 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
 {
     int ret=0;
     int read;
+    long itmp;
+    float ftmp;
 
     char *line = NULL;
     size_t len;
@@ -431,10 +433,12 @@ int read_ahf_groups(FILE *in, group_t **groups0, uint64_t *n_groups0)
         if (getline(&line, &len, in) <= 0 || line[0] == '#') continue;
 
         /* Get the number of particles */
-        read = sscanf(line, "%ld", &npart);
+        //read = sscanf(line, "%ld", &npart);
+        read = sscanf(line, "%ld %ld %ld %f %ld", &itmp, &itmp, &itmp, &ftmp, &npart);
 
         if (read <= 0) continue; /* check for EOF at top of loop */
-        if (read != 1) { ret = 3; break; }
+        //if (read != 1) { ret = 3; break; }
+        if (read != 5) { ret = 3; break; }
 
         if (n_groups == allocd)
         {
