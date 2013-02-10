@@ -57,7 +57,7 @@ int list_ensure_index(list_t *list, uint64_t index)
     //========================================================================
     if (index >= list->size)
     {
-        if (list->size == 0) list->size = 32;
+        if (list->size == 0) list->size = 1;
         while (list->size <= index) list->size *= 2;
 
         list->v = (uint64_t *)realloc(list->v, list->size * sizeof(uint64_t));

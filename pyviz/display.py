@@ -425,7 +425,7 @@ def draw_halo(halo, ramp, i):
     #float R = halo.w.Mass
     #float R = halo.w.Rmax
     #float R = halo.w.Radius * 0.001
-    R = halo.Radius
+    R = halo.Radius * 0.0001
     #float R = halo.w.Radius * 0.001
     #float R = 0.001
 
@@ -474,9 +474,9 @@ def draw_halo(halo, ramp, i):
 
 #endif
 
-    glScalef(halo.a * R,
-             halo.b * R,
-             halo.c * R)
+#   glScalef(halo.a * R,
+#            halo.b * R,
+#            halo.c * R)
 
     alpha = 0.1 #exp(-pow((int)t-(int)env.t,2) / env.t_max) / 2
     #alpha = exp(-pow((int)t-(int)env.t,2) / env.t_max) / 2
@@ -508,10 +508,11 @@ def draw_halo(halo, ramp, i):
 
         mi = log10(R)
         #print mi
-        if mi > -3:
+        if mi > -4:
             if mi > -1: mi = 2
             elif mi > -2: mi = 1
             elif mi > -3: mi = 0
+            else: mi = 0
             glCallList(sphere[int(mi)])
         else:
             glPointSize(R * 1e4)
@@ -564,8 +565,8 @@ def draw_halos_old():
 def draw_halos():
     Ex,Ey,Ez,Ux,Uy,Uz,Tx,Ty,Tz = eye()
 
-    draw_halos_old()
-    return
+    #draw_halos_old()
+    #return
 
     nhalos = len(env.halos[env.t])-1
     for i,halo in enumerate(env.halos[env.t][1:]):

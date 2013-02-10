@@ -353,11 +353,17 @@ int main(int argc, char **argv)
         line++;
     }
 
+    int i,j;
+    int gid=0, pid, nGrpParticles;
+    int dum;
+    int line=0;
     long min_id=0x0fffffff, max_id=0;
 
     //========================================================================
     // Process the file.
     //========================================================================
+    fscanf(in, "%i", &dum);
+
     while (!feof(in))
     {
         //====================================================================
@@ -368,6 +374,12 @@ int main(int argc, char **argv)
         {
             line++;
             gid++;
+
+            fprintf(stderr, "Group %i\n", gid);
+//          if (gid == 37)
+//          {
+//              fprintf(stderr, "Group 37 begins on line %i\n", line);
+//          }
 
             //================================================================
             // We keep track of how many particles are actually in a given
@@ -477,7 +489,10 @@ int main(int argc, char **argv)
                     //========================================================
                     if ((j=list[pid].len)) gcount.v[list[pid].v[j-1]]--;
 
-                    set_add(&list[pid], gid);
+                    if (belong == 0)
+                        list_set(&list[pid], gid, 0);
+                    else
+                        set_add(&list[pid], gid);
                 }
             }
 
@@ -496,6 +511,8 @@ int main(int argc, char **argv)
                         "ERROR: No groups found!\n", inname);
         exit(1);
     }
+
+    fprintf(stderr, "%lld groups found.\n", gcount.len);
 
     //========================================================================
     // We let this slide as a warning, but really it is a serious error
@@ -537,9 +554,9 @@ int main(int argc, char **argv)
             int start = list[i].len-1;
             int end   = ((belong==0) * (list[i].len-1));
 
-            fprintf(out, "%ld", list[i].v[start]);
+            fprintf(out, "%lld", list[i].v[start]);
             for (j=start-1; j >= end; j--)
-                fprintf(out, " %ld", list[i].v[j]);
+                fprintf(out, " %lld", list[i].v[j]);
 
         }
         fprintf(out, "\n");

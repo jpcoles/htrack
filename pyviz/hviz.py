@@ -38,6 +38,8 @@ def load_halos(db):
         load_6dfof_corrected(cursor)
     elif format == 'AHF':
         load_ahf(cursor)
+    elif format == 'lea':
+        load_lea(cursor)
 
 def load_skid(cursor):
 
@@ -441,6 +443,78 @@ def load_ahf(cursor):
 
     return 0
 
+def load_lea(cursor):
+
+    cursor.execute('SELECT min(Xc),max(Xc),min(Yc),max(Yc),min(Zc),max(Zc) FROM stat')
+    row = cursor.fetchone()
+    xmin,xmax, ymin,ymax, zmin,zmax = row[0],row[1], row[2],row[3], row[4],row[5]
+    print row
+    env.max_x = max(max(xmax-xmin, ymax-ymin), zmax-zmin)
+
+    cursor.execute('SELECT min(VXc),max(VXc),min(VYc),max(VYc),min(VZc),max(VZc) FROM stat')
+    row = cursor.fetchone()
+    vxmin,vxmax, vymin,vymax, vzmin,vzmax = row[0],row[1], row[2],row[3], row[4],row[5]
+    env.max_v = max(max(vxmax-vxmin, vymax-vymin), vzmax-vzmin)
+
+    if env.max_x == 0: env.max_x = 1;
+    if env.max_v == 0: env.max_v = 1;
+
+    env.max_x /= 2
+    env.max_v /= 2
+
+    cx = (xmax+xmin) / 2
+    cy = (ymax+ymin) / 2
+    cz = (zmax+zmin) / 2
+
+    print cx, cy, cz, env.max_x
+
+    o = \
+    cursor.execute(('SELECT snap_id,gid,' +
+                   '(Xc - %(cx)f)/%(maxx)f AS X,'      +
+                   '(Yc - %(cy)f)/%(maxx)f AS Y,'      +
+                   '(Zc - %(cz)f)/%(maxx)f AS Z,'      +
+                   'VXc*1e-3             AS VX,'       +
+                   'VYc*1e-3             AS VY,'       +
+                   'VZc*1e-3             AS VZ,'       +
+                   'Mvir                 AS Mass,'     +
+                   'Rvir                 AS Radius '   +
+                   'FROM stat ORDER BY snap_id ASC') % {'cx':cx, 'cy':cy, 'cz':cz, 'maxx':env.max_x})
+
+    columns = map(lambda x: x[0], o.description)
+    oldt = 0 
+    env.halos.append([None])
+
+    print "Loading halos...",
+    for row in cursor:
+        t = row['snap_id']
+        i = row['gid']
+
+        #t,i = row[0:2]
+
+        #print t,i
+
+        if t != oldt:
+            print t
+            oldt = t
+            env.halos.append([[]])
+
+        h = Halo(row)
+        #h.a, h.b, h.c = 1,1,1
+
+#        exec s
+
+        env.halos[t].append(h)
+        try:
+            pass
+        except:
+            print '!', len(env.halos), t, e
+            sys.exit(1)
+    print "Done."
+
+    env.mt = [None]
+
+    return 0
+
 #============================================================================
 #                                    help
 #============================================================================
@@ -477,7 +551,7 @@ if __name__ == '__main__':
     env.current_movie_frame = 0
     env.mode = MODE_TRACK | MODE_HALOBODIES
     #env.mode = MODE_HALOBODIES
-    env.track_id = 1
+    env.track_id = 0
     env.pointto_id = []
     #env.pointto_id = [9961,350433]
     #env.track_id = 414
