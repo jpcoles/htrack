@@ -204,6 +204,7 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
 
             ERRORIF(curr == 0, "Track %i shouldn't begin with a field particle. k=%i j=%i\n", cur_track, k,j);
 
+#if 0
             if (k != 0)
             {
                 tracks[cur_track].merged_at = k-1;
@@ -217,8 +218,9 @@ int build_tracks(z_t *zs, uint64_t n_zs, track_t **tracks0, uint64_t *n_tracks0)
                     }
                 }
             }
+#endif
 
-            for (i=k; curr != 0; Zt++, i++)
+            for (i=k; curr != 0 && i < n_zs-1; Zt++, i++)
             {
                 //if (j == 16836) eprintf("-> %ld\n", curr);
                 //if (curr == INVALID_GROUP_ID) break;
